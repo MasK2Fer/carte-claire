@@ -316,7 +316,7 @@
     var lang = state.lang || "fr";
     var h = '<h2>Carte client</h2><p class="small muted">Aperçu de ce que voit le client après avoir scanné le QR code. Il ne voit que la carte : ni recettes, ni coûts, ni marges.</p>';
     h += '<div class="client-layout"><div class="phone" lang="' + lang + '">' + CC.carteHTML(snapshot(), lang, clientSel) + "</div>";
-    h += '<div class="qr-box"><div id="qr" aria-label="QR code de la carte client"></div><p class="small muted">QR code à poser sur les tables.</p><a class="btn" href="' + esc(urlCarte()) + '" target="_blank" rel="noopener">Ouvrir la carte client</a>' + (cloud ? '<p class="small muted" style="word-break:break-all">' + esc(urlCarte()) + "</p>" : "") + "</div>";
+    h += '<div class="qr-box"><div id="qr" aria-label="QR code de la carte client"></div><p class="small muted">QR code à poser sur les tables.</p>' + (cloud ? "" : '<p class="small muted">Démonstration : scanné par un autre téléphone, ce QR code montre la carte d\'exemple, car tes saisies restent dans ce navigateur. Avec les comptes en ligne, il montre ta carte.</p>') + '<a class="btn" href="' + esc(urlCarte()) + '" target="_blank" rel="noopener">Ouvrir la carte client</a>' + (cloud ? '<p class="small muted" style="word-break:break-all">' + esc(urlCarte()) + "</p>" : "") + "</div>";
     h += "</div>";
     return h;
   }
