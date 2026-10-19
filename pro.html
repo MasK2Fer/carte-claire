@@ -16,10 +16,14 @@
   <form class="gate-card" id="gate-form" autocomplete="off">
     <h2>Espace restaurateur</h2>
     <p class="small muted">Recettes, tableau des allergènes, coûts et marges. Les clients n'y ont pas accès.</p>
-    <div class="field"><label class="label" for="gate-code">Code d'accès</label><input id="gate-code" type="text" inputmode="numeric" autocomplete="off" placeholder="Code de démonstration : 1234"></div>
-    <p class="err" id="gate-err" hidden>Code incorrect. Pour la démonstration, le code est 1234.</p>
-    <button class="btn primary" type="submit">Entrer</button>
-    <p class="small muted">Dans la vraie version, chaque restaurant aura son compte avec mot de passe.</p>
+    <div class="demo-only field"><label class="label" for="gate-code">Code d'accès</label><input id="gate-code" type="text" inputmode="numeric" autocomplete="off" placeholder="Code de démonstration : 1234"></div>
+    <div class="cloud-only field" hidden><label class="label" for="gate-email">Adresse e-mail</label><input id="gate-email" type="email" autocomplete="email" required disabled></div>
+    <div class="cloud-only field" hidden><label class="label" for="gate-pass">Mot de passe</label><input id="gate-pass" type="password" autocomplete="current-password" minlength="8" required disabled></div>
+    <p class="err" id="gate-err" role="alert" hidden>Code incorrect. Pour la démonstration, le code est 1234.</p>
+    <p class="small" id="gate-info" role="status" hidden></p>
+    <button class="btn primary" type="submit" id="gate-submit">Entrer</button>
+    <button class="cloud-only btn" type="button" id="gate-signup" hidden>Créer mon compte</button>
+    <p class="demo-only small muted">Dans la vraie version, chaque restaurant aura son compte avec mot de passe.</p>
     <a class="small" href="carte.html" style="color:var(--accent)">Je suis client : voir la carte</a>
   </form>
 </div>
@@ -29,8 +33,10 @@
       <span class="app">Carte Claire</span>
       <input id="resto" class="resto" type="text" aria-label="Nom du restaurant" value="">
     </div>
+    <button class="cloud-only btn" type="button" id="logout" hidden>Se déconnecter</button>
   </header>
-  <p class="intro"><a href="./" style="color:var(--accent);font-weight:600;text-decoration:none">Carte Claire</a> · démonstration avec des données d'exemple. Tes saisies restent dans ce navigateur et mettent à jour la carte client sur ce même téléphone.</p>
+  <p class="intro demo-only"><a href="./" style="color:var(--accent);font-weight:600;text-decoration:none">Carte Claire</a> · démonstration avec des données d'exemple. Tes saisies restent dans ce navigateur et mettent à jour la carte client sur ce même téléphone.</p>
+  <p class="intro cloud-only" hidden><a href="./" style="color:var(--accent);font-weight:600;text-decoration:none">Carte Claire</a> · <span id="sync">Tes saisies sont enregistrées en ligne et mettent à jour la carte client tout de suite.</span></p>
   <main id="view" class="wrap" aria-live="polite"></main>
 </div>
 
@@ -45,6 +51,8 @@
 <div id="toast-root"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="commun.js"></script>
 <script>
 (function () {
@@ -136,8 +144,10 @@
 
   // ---------- État ----------
   var KEY = "carte-claire-maquette-v1";
-  var state;
-  try { state = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { state = null; }
+  var cloud = CC.cloud; // null : démonstration dans le navigateur
+  var user = null, slug = ""; // compte connecté et code de sa carte publique (en ligne seulement)
+  var state = null;
+  if (!cloud) { try { state = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { state = null; } }
   if (!state || !state.recettes) state = SAMPLE();
   var tab = "recettes";
   try { var t0 = (location.hash || "").replace("#", ""); if (["recettes", "allergenes", "carte", "marges"].indexOf(t0) >= 0) tab = t0; } catch (e) {}
@@ -145,7 +155,65 @@
   var pendingInvoice = null;
   var confirmReset = false;
 
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} CC.ecrireCarte(snapshot()); }
+  function save() {
+    if (!cloud) { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} CC.ecrireCarte(snapshot()); return; }
+    if (!user) return;
+    // En ligne : on regroupe les saisies rapprochées en un seul envoi
+    syncMsg("Enregistrement…");
+    clearTimeout(save.t); save.t = setTimeout(envoyer, 700);
+  }
+
+  // ---------- En ligne (Supabase) ----------
+  function syncMsg(txt) { var el = document.getElementById("sync"); if (el) el.textContent = txt; }
+  var envoiEnCours = null, aRenvoyer = false;
+  function envoyer() {
+    if (envoiEnCours) { aRenvoyer = true; return; }
+    var maj = new Date().toISOString();
+    envoiEnCours = Promise.all([
+      cloud.from("espaces").upsert({ owner: user.id, donnees: state, maj: maj }),
+      cloud.from("cartes").update({ carte: snapshot(), maj: maj }).eq("owner", user.id)
+    ]).then(function (rs) {
+      var err = rs[0].error || rs[1].error;
+      if (err) throw err;
+      syncMsg("Enregistré en ligne. La carte client est à jour.");
+    }).catch(function () {
+      syncMsg("Pas enregistré : connexion perdue. Nouvel essai à la prochaine modification.");
+      toast("Enregistrement en ligne impossible");
+    }).then(function () {
+      envoiEnCours = null;
+      if (aRenvoyer) { aRenvoyer = false; envoyer(); }
+    });
+  }
+  // Code court de la carte publique, tiré au hasard. Il ne change plus ensuite,
+  // pour que les QR codes imprimés restent valables même si le restaurant change de nom.
+  function nouveauSlug() {
+    var s = "", lettres = "abcdefghjkmnpqrstuvwyz23456789";
+    for (var i = 0; i < 8; i++) s += lettres[Math.floor(Math.random() * lettres.length)];
+    return s;
+  }
+  // Après connexion : charge l'espace du restaurateur, ou le crée au premier passage avec les données d'exemple
+  function chargerEspace() {
+    return Promise.all([
+      cloud.from("espaces").select("donnees").eq("owner", user.id).maybeSingle(),
+      cloud.from("cartes").select("slug").eq("owner", user.id).maybeSingle()
+    ]).then(function (rs) {
+      if (rs[0].error) throw rs[0].error; if (rs[1].error) throw rs[1].error;
+      state = rs[0].data && rs[0].data.donnees && rs[0].data.donnees.recettes ? rs[0].data.donnees : SAMPLE();
+      if (rs[1].data) { slug = rs[1].data.slug; return; }
+      return creerCarte(0);
+    }).then(envoyer);
+  }
+  function creerCarte(essai) {
+    var s = nouveauSlug();
+    return cloud.from("cartes").insert({ slug: s, owner: user.id, carte: snapshot() }).then(function (r) {
+      if (!r.error) { slug = s; return; }
+      if (r.error.code === "23505" && essai < 3) return creerCarte(essai + 1); // code déjà pris : on en tire un autre
+      throw r.error;
+    });
+  }
+  function urlCarte() {
+    return new URL(cloud && slug ? "carte.html?r=" + encodeURIComponent(slug) : "carte.html", location.href).href;
+  }
 
   // ---------- Outils ----------
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
@@ -248,7 +316,7 @@
     var lang = state.lang || "fr";
     var h = '<h2>Carte client</h2><p class="small muted">Aperçu de ce que voit le client après avoir scanné le QR code. Il ne voit que la carte : ni recettes, ni coûts, ni marges.</p>';
     h += '<div class="client-layout"><div class="phone" lang="' + lang + '">' + CC.carteHTML(snapshot(), lang, clientSel) + "</div>";
-    h += '<div class="qr-box"><div id="qr" aria-label="QR code de la carte client"></div><p class="small muted">QR code à poser sur les tables.</p><a class="btn" href="carte.html">Ouvrir la carte client</a></div>';
+    h += '<div class="qr-box"><div id="qr" aria-label="QR code de la carte client"></div><p class="small muted">QR code à poser sur les tables.</p><a class="btn" href="' + esc(urlCarte()) + '" target="_blank" rel="noopener">Ouvrir la carte client</a>' + (cloud ? '<p class="small muted" style="word-break:break-all">' + esc(urlCarte()) + "</p>" : "") + "</div>";
     h += "</div>";
     return h;
   }
@@ -257,7 +325,7 @@
     var box = document.getElementById("qr");
     if (!box) return;
     try {
-      var url = new URL("carte.html", location.href).href;
+      var url = urlCarte();
       new QRCode(box, { text: url, width: 160, height: 160, colorDark: "#111111", colorLight: "#FFFFFF" });
     } catch (e) { box.innerHTML = '<p class="small muted" style="line-height:1.4">QR code indisponible ici.</p>'; }
   }
@@ -475,19 +543,76 @@
   });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && draft) closeEditor(); });
 
-  // ---------- Accès restaurateur (démonstration) ----------
+  // ---------- Accès restaurateur ----------
   function unlock() { document.body.classList.remove("locked"); var g = document.getElementById("gate"); if (g) g.hidden = true; }
-  try { if (sessionStorage.getItem("cc-pro-ok") === "1") unlock(); } catch (e) {}
+  function lock() { document.body.classList.add("locked"); var g = document.getElementById("gate"); if (g) g.hidden = false; }
+  var gateErr = document.getElementById("gate-err"), gateInfo = document.getElementById("gate-info");
+  function gateMsg(err, info) {
+    gateErr.hidden = !err; gateErr.textContent = err || "";
+    gateInfo.hidden = !info; gateInfo.textContent = info || "";
+  }
+
+  if (!cloud) {
+    // Démonstration : code d'accès, données dans ce navigateur
+    try { if (sessionStorage.getItem("cc-pro-ok") === "1") unlock(); } catch (e) {}
+    document.getElementById("gate-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (document.getElementById("gate-code").value.trim() === "1234") {
+        try { sessionStorage.setItem("cc-pro-ok", "1"); } catch (e2) {}
+        unlock(); render();
+      } else { gateErr.hidden = false; }
+    });
+    save();
+    render();
+    return;
+  }
+
+  // En ligne : compte e-mail et mot de passe
+  Array.prototype.forEach.call(document.querySelectorAll(".demo-only"), function (el) { el.hidden = true; });
+  Array.prototype.forEach.call(document.querySelectorAll(".cloud-only"), function (el) { el.hidden = false; el.disabled = false; });
+  Array.prototype.forEach.call(document.querySelectorAll(".cloud-only input"), function (el) { el.disabled = false; });
+  document.getElementById("gate-code").disabled = true;
+  var gateSubmit = document.getElementById("gate-submit"), gateSignup = document.getElementById("gate-signup");
+  gateSubmit.textContent = "Se connecter";
+  function identifiants() { return { email: document.getElementById("gate-email").value.trim(), password: document.getElementById("gate-pass").value }; }
+  function occupe(b) { gateSubmit.disabled = b; gateSignup.disabled = b; }
+
+  function entrer(u) {
+    user = u;
+    gateMsg("", "Chargement de ton espace…");
+    return chargerEspace().then(function () {
+      gateMsg("", ""); unlock(); render();
+    }).catch(function () {
+      user = null; gateMsg("Ton espace n'a pas pu être chargé. Vérifie ta connexion et réessaie.", "");
+    });
+  }
   document.getElementById("gate-form").addEventListener("submit", function (e) {
     e.preventDefault();
-    if (document.getElementById("gate-code").value.trim() === "1234") {
-      try { sessionStorage.setItem("cc-pro-ok", "1"); } catch (e2) {}
-      unlock(); render();
-    } else { document.getElementById("gate-err").hidden = false; }
+    occupe(true); gateMsg("", "Connexion…");
+    cloud.auth.signInWithPassword(identifiants()).then(function (r) {
+      if (r.error) { gateMsg(r.error.message === "Email not confirmed" ? "Adresse pas encore confirmée : clique sur le lien reçu par e-mail." : "E-mail ou mot de passe incorrect.", ""); return; }
+      return entrer(r.data.user);
+    }).then(function () { occupe(false); });
   });
-
-  save();
-  render();
+  gateSignup.addEventListener("click", function () {
+    var id = identifiants();
+    if (!id.email || id.password.length < 8) { gateMsg("Indique ton e-mail et un mot de passe d'au moins 8 caractères.", ""); return; }
+    occupe(true); gateMsg("", "Création du compte…");
+    cloud.auth.signUp({ email: id.email, password: id.password, options: { emailRedirectTo: location.href.split("#")[0] } }).then(function (r) {
+      if (r.error) { gateMsg(/registered/i.test(r.error.message) ? "Un compte existe déjà avec cet e-mail : connecte-toi." : "Création impossible : " + r.error.message, ""); return; }
+      if (r.data.session) return entrer(r.data.user);
+      gateMsg("", "Compte créé. Clique sur le lien reçu par e-mail pour le confirmer, puis connecte-toi ici.");
+    }).then(function () { occupe(false); });
+  });
+  document.getElementById("logout").addEventListener("click", function () {
+    clearTimeout(save.t);
+    cloud.auth.signOut().then(function () {
+      user = null; slug = ""; state = SAMPLE(); closeEditor(); lock();
+      document.getElementById("gate-pass").value = ""; gateMsg("", "Tu es déconnecté.");
+    });
+  });
+  // Session déjà ouverte sur cet appareil
+  cloud.auth.getSession().then(function (r) { if (r.data && r.data.session) entrer(r.data.session.user); });
 })();
 </script>
 

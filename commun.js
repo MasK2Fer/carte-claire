@@ -94,5 +94,21 @@
   // Carte d'exemple : plats, prix de vente et allergènes seulement
   var EXEMPLE = {"resto":"Le Bistrot d'exemple","lang":"fr","plats":[{"nom":"Velouté de champignons","noms":{"en":"Mushroom velouté","de":"Champignon-Cremesuppe","it":"Vellutata di funghi"},"prix":9,"contient":["lait","celeri"],"traces":[],"variante":{"fr":"Sans crème ni beurre, cuit à l'huile d'olive","en":"Without cream or butter, cooked in olive oil","de":"Ohne Sahne und Butter, mit Olivenöl gekocht","it":"Senza panna né burro, cotto con olio d'oliva","retire":["lait"]}},{"nom":"Moules marinières, frites","noms":{"en":"Mussels marinière with fries","de":"Miesmuscheln Marinière mit Pommes","it":"Cozze alla marinara con patatine"},"prix":17,"contient":["lait","sulfites","mollusques"],"traces":["gluten","poissons"],"variante":{"fr":"","en":"","de":"","it":"","retire":[]}},{"nom":"Saumon, beurre blanc, légumes de saison","noms":{"en":"Salmon, beurre blanc, seasonal vegetables","de":"Lachs, Beurre blanc, Saisongemüse","it":"Salmone, beurre blanc, verdure di stagione"},"prix":22,"contient":["poissons","lait","sulfites"],"traces":[],"variante":{"fr":"Sans beurre blanc, avec un filet d'huile d'olive","en":"Without beurre blanc, with a drizzle of olive oil","de":"Ohne Beurre blanc, mit etwas Olivenöl","it":"Senza beurre blanc, con un filo d'olio d'oliva","retire":["lait","sulfites"]}},{"nom":"Tagliatelles au pesto maison","noms":{"en":"Tagliatelle with homemade pesto","de":"Tagliatelle mit hausgemachtem Pesto","it":"Tagliatelle al pesto della casa"},"prix":15,"contient":["gluten","lait","fruits_coque"],"traces":[],"variante":{"fr":"Pesto sans noisettes","en":"Pesto without hazelnuts","de":"Pesto ohne Haselnüsse","it":"Pesto senza nocciole","retire":["fruits_coque"]}},{"nom":"Moelleux au chocolat","noms":{"en":"Chocolate fondant","de":"Schokoladen-Fondant","it":"Tortino al cioccolato"},"prix":8,"contient":["gluten","oeufs","soja","lait"],"traces":["fruits_coque"],"variante":{"fr":"","en":"","de":"","it":"","retire":[]}}]};
 
-  window.CC = { EXEMPLE: EXEMPLE, ALLERGENES: ALLERGENES, A: A, UI: UI, LANGS: LANGS, esc: esc, eur: eur, aName: aName, carteHTML: carteHTML, lireCarte: lireCarte, ecrireCarte: ecrireCarte };
+  // Service en ligne (Supabase) : actif seulement si config.js est rempli et la bibliothèque chargée.
+  // Sinon, null : la maquette fonctionne comme avant, dans le navigateur.
+  var cloud = null;
+  try {
+    var cfg = window.CC_CONFIG || {};
+    if (cfg.supabaseUrl && cfg.supabaseAnonKey && window.supabase) cloud = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+  } catch (e) { cloud = null; }
+
+  // Carte publique d'un restaurant, par son code court (celui du QR code)
+  function chargerCartePublique(slug) {
+    return cloud.from("cartes").select("carte").eq("slug", slug).maybeSingle().then(function (r) {
+      if (r.error) throw r.error;
+      return r.data ? r.data.carte : null;
+    });
+  }
+
+  window.CC = { EXEMPLE: EXEMPLE, ALLERGENES: ALLERGENES, A: A, UI: UI, LANGS: LANGS, esc: esc, eur: eur, aName: aName, carteHTML: carteHTML, lireCarte: lireCarte, ecrireCarte: ecrireCarte, cloud: cloud, chargerCartePublique: chargerCartePublique };
 })();

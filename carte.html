@@ -16,15 +16,24 @@
   <div class="phone" id="carte" aria-live="polite"></div>
   <p class="foot">Carte des allergènes réalisée avec Carte Claire · maquette</p>
 </main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="commun.js"></script>
 <script>
 (function () {
   "use strict";
-  var data = CC.lireCarte() || CC.EXEMPLE;
-  var lang = data.lang || "fr";
-  try { var nav = (navigator.language || "").slice(0, 2).toLowerCase(); if (CC.LANGS.indexOf(nav) >= 0) lang = nav; } catch (e) {}
+  var data = null, lang = "fr";
+  var nav = "";
+  try { nav = (navigator.language || "").slice(0, 2).toLowerCase(); } catch (e) {}
   var sel = []; // reste en mémoire : jamais enregistré
   var box = document.getElementById("carte");
+  function demarrer(d) {
+    data = d;
+    lang = CC.LANGS.indexOf(nav) >= 0 ? nav : (data.lang || "fr");
+    if (data.resto) document.title = data.resto + " · Notre carte";
+    render();
+  }
+  function message(txt) { box.innerHTML = '<p class="notice" style="padding:24px 8px">' + CC.esc(txt) + "</p>"; }
   function render(focusId) {
     document.documentElement.lang = lang;
     box.setAttribute("lang", lang);
@@ -41,7 +50,18 @@
     if (el.checked && i < 0) sel.push(el.value); if (!el.checked && i >= 0) sel.splice(i, 1);
     render(el.id);
   });
-  render();
+
+  // Adresse du QR code : carte.html?r=<code du restaurant>. Sans code, carte de démonstration.
+  var slug = "";
+  try { slug = (new URLSearchParams(location.search).get("r") || "").trim().toLowerCase(); } catch (e) {}
+  if (slug && CC.cloud) {
+    message("Chargement de la carte…");
+    CC.chargerCartePublique(slug).then(function (d) {
+      if (d && d.plats) demarrer(d); else message("Cette carte n'existe pas ou n'est plus en ligne. Demandez la carte au personnel.");
+    }).catch(function () { message("La carte n'a pas pu être chargée. Vérifiez votre connexion ou demandez la carte au personnel."); });
+  } else {
+    demarrer(CC.lireCarte() || CC.EXEMPLE);
+  }
 })();
 </script>
 </body>

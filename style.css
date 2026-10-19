@@ -161,7 +161,7 @@ details summary { cursor: pointer; font-weight: 600; color: var(--muted); paddin
 .ing-table th { font: 600 12px/1 var(--f-display); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .ing-table td.r, .ing-table th.r { text-align: right; }
 .price-input { width: 84px; text-align: right; }
-input[type="text"], input[type="number"], select, textarea {
+input[type="text"], input[type="email"], input[type="password"], input[type="number"], select, textarea {
   font: 400 16px/1.3 var(--f-body); color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0;
 }
 input[type="number"] { font-family: var(--f-num); }
