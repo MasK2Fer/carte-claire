@@ -43,6 +43,7 @@
 
 <div id="sheet-root"></div>
 <div id="toast-root"></div>
+<div id="print-root" aria-hidden="true"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="commun.js"></script>
@@ -194,19 +195,29 @@
   function vRecettes() {
     var h = '<div class="row" style="justify-content:space-between"><h2>Fiches recettes</h2><span class="muted small">' + state.recettes.length + " plats</span></div>";
     h += '<div class="row"><button class="btn primary" data-act="new">+ Nouvelle recette</button>' +
+         '<button class="btn" data-act="new-jour">+ Plat du jour</button>' +
          '<label class="btn" for="import-photo">Importer une photo de la carte</label>' +
          '<input id="import-photo" type="file" accept="image/*" hidden></div>';
     h += '<p class="small muted">L\'import photo est simulé dans cette maquette : il ajoute une recette pré-remplie à vérifier. La vraie version lira la carte.</p>';
     h += '<div class="list">';
+    var auj = CC.aujourdhui();
     state.recettes.forEach(function (r, idx) {
       var rr = ratio(r), over = rr > state.cible / 100;
-      h += '<button class="card recipe" data-act="edit" data-id="' + esc(r.id) + '">' +
+      var surCarte = !r.ardoise || r.jour === auj, epuise = surCarte && r.epuise === auj;
+      var etat = r.ardoise ? (surCarte ? '<span class="chip jour">Plat du jour</span>' : '<span class="chip check">Hors carte</span>') : "";
+      if (epuise) etat += '<span class="chip check">Épuisé aujourd\'hui</span>';
+      h += '<div class="recipe-wrap"><button class="card recipe" data-act="edit" data-id="' + esc(r.id) + '">' +
         '<div class="recipe-head"><h3>' + esc(r.nom) + '</h3><span class="price">' + eur(r.prix) + "</span></div>" +
-        '<div class="chips">' + (r.statut === "a_verifier" ? '<span class="chip check">À vérifier</span>' : "") + chipsFor(r) + "</div>" +
+        '<div class="chips">' + etat + (r.statut === "a_verifier" ? '<span class="chip check">À vérifier</span>' : "") + chipsFor(r) + "</div>" +
         '<div class="meta"><span class="num">Fiche ' + String(idx + 1).padStart(2, "0") + '</span><span>Coût portion <span class="num">' + eur(cout(r)) + '</span></span><span class="pill ' + (over ? "bad" : "ok") + '">' + pct(rr) + "</span></div>" +
         "</button>";
+      h += '<div class="recipe-actions">';
+      if (r.ardoise) h += surCarte ? '<button class="btn ghost" data-act="jour-off" data-id="' + esc(r.id) + '">Retirer de la carte</button>' : '<button class="btn ghost" data-act="jour-on" data-id="' + esc(r.id) + '">Remettre aujourd\'hui</button>';
+      if (surCarte) h += '<button class="btn ghost" data-act="epuise" data-id="' + esc(r.id) + '" aria-pressed="' + epuise + '">' + (epuise ? "De nouveau disponible" : "Épuisé aujourd'hui") + "</button>";
+      h += "</div></div>";
     });
     h += "</div>";
+    h += '<p class="small muted">Un plat épuisé disparaît de la carte client jusqu\'au lendemain. Un plat du jour n\'y figure que le jour où il est proposé.</p>';
     return h;
   }
 
@@ -227,7 +238,7 @@
       h += "</tr>";
     });
     h += "</tbody></table></div>";
-    h += '<p class="small muted">Dans la vraie version : export PDF à imprimer et afficher, avec la date de mise à jour.</p>';
+    h += '<div class="row"><button class="btn primary" data-act="print-affichette">Imprimer l\'affichette</button><span class="small muted">Format A4 paysage, à afficher en salle ou à garder au comptoir. « Enregistrer en PDF » dans la fenêtre d\'impression donne le fichier.</span></div>';
     return h;
   }
 
@@ -239,7 +250,8 @@
       maj: state.maj,
       plats: state.recettes.map(function (r) {
         return { nom: r.nom, noms: r.noms || {}, prix: r.prix, contient: contient(r), traces: traces(r),
-          variante: { fr: r.variante.fr || "", en: r.variante.en || "", de: r.variante.de || "", it: r.variante.it || "", retire: (r.variante.retire || []).slice() } };
+          variante: { fr: r.variante.fr || "", en: r.variante.en || "", de: r.variante.de || "", it: r.variante.it || "", retire: (r.variante.retire || []).slice() },
+          ardoise: !!r.ardoise, jour: r.jour || "", epuise: r.epuise || "" };
       })
     };
   }
@@ -248,7 +260,7 @@
     var lang = state.lang || "fr";
     var h = '<h2>Carte client</h2><p class="small muted">Aperçu de ce que voit le client après avoir scanné le QR code. Il ne voit que la carte : ni recettes, ni coûts, ni marges.</p>';
     h += '<div class="client-layout"><div class="phone" lang="' + lang + '">' + CC.carteHTML(snapshot(), lang, clientSel) + "</div>";
-    h += '<div class="qr-box"><div id="qr" aria-label="QR code de la carte client"></div><p class="small muted">QR code à poser sur les tables.</p><a class="btn" href="carte.html">Ouvrir la carte client</a></div>';
+    h += '<div class="qr-box"><div id="qr" aria-label="QR code de la carte client"></div><p class="small muted">QR code à poser sur les tables.</p><a class="btn" href="carte.html">Ouvrir la carte client</a><button class="btn" data-act="print-chevalets">Imprimer les chevalets</button></div>';
     h += "</div>";
     return h;
   }
@@ -308,12 +320,56 @@
     return h;
   }
 
+  // ---------- Impression : affichette des allergènes et chevalets QR ----------
+  // Le contenu est construit dans #print-root, seul élément visible à l'impression (voir style.css).
+  function printAffichette() {
+    var h = '<section class="print-poster"><header><h1>' + esc(state.resto) + '</h1><p>Allergènes présents dans nos plats · mis à jour le <span class="num">' + frDate(state.maj) + "</span></p></header>";
+    h += '<table class="matrix"><thead><tr><th class="dish" scope="col">Plat</th>';
+    ALLERGENES.forEach(function (a) { h += '<th scope="col">' + a.n + "<br>" + esc(a.fr) + "</th>"; });
+    h += "</tr></thead><tbody>";
+    state.recettes.forEach(function (r) {
+      if (r.ardoise && r.jour !== CC.aujourdhui()) return;
+      var c = contient(r), t = traces(r);
+      h += '<tr><th class="dish" scope="row">' + esc(r.nom) + "</th>";
+      ALLERGENES.forEach(function (a) { h += "<td>" + (c.indexOf(a.c) >= 0 ? "●" : t.indexOf(a.c) >= 0 ? "!" : "") + "</td>"; });
+      h += "</tr>";
+    });
+    h += '</tbody></table><p class="print-legend">● contient · ! peut contenir des traces (contamination croisée) · 14 allergènes à déclaration obligatoire, règlement (UE) n° 1169/2011.</p>';
+    h += '<p class="print-legend"><b>Signalez votre allergie au personnel avant de commander.</b> Le détail des recettes est disponible sur demande.</p></section>';
+    lancerImpression(h);
+  }
+  function printChevalets() {
+    var url = new URL("carte.html", location.href).href, h = '<section class="print-chevalets">';
+    for (var i = 0; i < 4; i++) {
+      h += '<div class="chevalet"><p class="chev-resto">' + esc(state.resto) + '</p><div class="chev-qr" id="chev-qr-' + i + '"></div>' +
+        '<p class="chev-txt"><b>Scannez pour voir la carte</b> et filtrer les plats selon vos allergies.</p>' +
+        '<p class="chev-langs">Français · English · Deutsch · Italiano</p></div>';
+    }
+    lancerImpression(h + "</section>", function () {
+      for (var i = 0; i < 4; i++) {
+        var box = document.getElementById("chev-qr-" + i);
+        try { new QRCode(box, { text: url, width: 200, height: 200, colorDark: "#111111", colorLight: "#FFFFFF" }); }
+        catch (e) { box.innerHTML = '<p class="small">' + esc(url) + "</p>"; }
+      }
+    });
+  }
+  function lancerImpression(html, avant) {
+    var root = document.getElementById("print-root");
+    root.innerHTML = html;
+    if (avant) avant();
+    document.body.classList.add("printing");
+    // Laisse le temps aux QR codes de se dessiner avant d'ouvrir la fenêtre d'impression
+    setTimeout(function () { window.print(); }, 150);
+  }
+  window.addEventListener("afterprint", function () { document.body.classList.remove("printing"); document.getElementById("print-root").innerHTML = ""; });
+
   // ---------- Feuille d'édition ----------
   var draft = null, draftConfirmDelete = false;
-  function openEditor(id) {
+  function openEditor(id, jour) {
     document.getElementById("toast-root").innerHTML = "";
     var r = id ? state.recettes.filter(function (x) { return x.id === id; })[0] : null;
     draft = r ? JSON.parse(JSON.stringify(r)) : { id: "r" + Date.now(), nom: "", noms: {}, prix: 12, lignes: [], traces: [], tracesNote: "", variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok", _new: true };
+    if (!r && jour) { draft.ardoise = true; draft.jour = CC.aujourdhui(); }
     draftConfirmDelete = false;
     renderSheet();
   }
@@ -323,11 +379,12 @@
     var r = draft, c = contient(r), t = traces(r), rr = ratio(r), over = rr > state.cible / 100;
     var opts = state.ingredients.slice().sort(function (a, b) { return a.nom.localeCompare(b.nom, "fr"); });
     var h = '<div class="sheet-bg" data-act="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">';
-    h += '<div class="sheet-head"><h2 id="sheet-title">' + (r._new ? "Nouvelle recette" : "Fiche recette") + '</h2><button class="icon-btn" data-act="close" aria-label="Fermer">×</button></div>';
+    h += '<div class="sheet-head"><h2 id="sheet-title">' + (r.ardoise ? (r._new ? "Nouveau plat du jour" : "Plat du jour") : (r._new ? "Nouvelle recette" : "Fiche recette")) + '</h2><button class="icon-btn" data-act="close" aria-label="Fermer">×</button></div>';
     if (r.statut === "a_verifier") h += '<div class="alert" style="background:var(--warn-soft);color:var(--warn)"><b>Pré-remplie depuis la photo : vérifie les ingrédients et les quantités.</b></div>';
     h += '<div class="grid2"><div class="field"><label class="label" for="f-nom">Nom du plat</label><input id="f-nom" type="text" data-f="nom" value="' + esc(r.nom) + '" placeholder="Ex. Salade de chèvre chaud"></div>' +
          '<div class="field"><label class="label" for="f-prix">Prix TTC (€)</label><input id="f-prix" type="number" min="0" step="0.5" data-f="prix" value="' + r.prix + '"></div></div>';
 
+    h += '<label class="toggle accent"><input type="checkbox" id="f-ardoise" data-act="ardoise"' + (r.ardoise ? " checked" : "") + '><span>Plat du jour : sur la carte aujourd\'hui seulement</span></label>';
     h += '<div class="field"><span class="label">Ingrédients par portion</span>';
     r.lignes.forEach(function (l, i) {
       var g = ing(l.ing); if (!g) return;
@@ -379,6 +436,11 @@
     var b = e.target.closest("[data-act]"); if (!b) return;
     var act = b.dataset.act;
     if (act === "new") openEditor(null);
+    if (act === "new-jour") openEditor(null, true);
+    var rb = b.dataset.id ? state.recettes.filter(function (x) { return x.id === b.dataset.id; })[0] : null;
+    if (act === "epuise" && rb) { var ep = rb.epuise === CC.aujourdhui(); rb.epuise = ep ? "" : CC.aujourdhui(); save(); render(); toast(ep ? "De nouveau sur la carte" : "Retiré de la carte jusqu'à demain"); }
+    if (act === "jour-on" && rb) { rb.jour = CC.aujourdhui(); rb.epuise = ""; save(); render(); toast("Plat du jour remis sur la carte"); }
+    if (act === "jour-off" && rb) { rb.jour = ""; save(); render(); toast("Plat du jour retiré de la carte"); }
     if (act === "edit") openEditor(b.dataset.id);
     if (act === "lang") { state.lang = b.dataset.lang; save(); render(); }
     if (act === "inv-apply") {
@@ -386,6 +448,8 @@
       pendingInvoice.forEach(function (p) { if (p.ok) { ing(p.id).prix = p.prix; n++; } });
       pendingInvoice = null; touch(); render(); toast(n + " prix mis à jour");
     }
+    if (act === "print-affichette") printAffichette();
+    if (act === "print-chevalets") printChevalets();
     if (act === "inv-cancel") { pendingInvoice = null; render(); }
     if (act === "reset") { confirmReset = true; render(); }
     if (act === "reset-no") { confirmReset = false; render(); }
@@ -468,6 +532,7 @@
       var i = draft.traces.indexOf(el.value);
       if (el.checked && i < 0) draft.traces.push(el.value); if (!el.checked && i >= 0) draft.traces.splice(i, 1); renderSheet();
     }
+    if (el.dataset.act === "ardoise") { draft.ardoise = el.checked; draft.jour = el.checked ? CC.aujourdhui() : ""; renderSheet(); }
     if (el.dataset.act === "vretire") {
       var j = draft.variante.retire.indexOf(el.value);
       if (el.checked && j < 0) draft.variante.retire.push(el.value); if (!el.checked && j >= 0) draft.variante.retire.splice(j, 1); renderSheet();

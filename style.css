@@ -101,6 +101,12 @@ p { margin: 0; }
 .chip.trace { background: var(--warn-soft); color: var(--warn); }
 .chip.none { background: var(--ok-soft); color: var(--ok); }
 .chip.check { background: var(--sunk); color: var(--muted); }
+.chip.jour { background: var(--accent); color: var(--accent-ink); }
+.toggle.accent input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.recipe-wrap { display: flex; flex-direction: column; gap: 2px; }
+.recipe-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.recipe-actions:empty { display: none; }
+.badge-jour { align-self: flex-start; font: 600 12px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
 .pill { font: 600 13px/1 var(--f-num); padding: 5px 8px; border-radius: 4px; white-space: nowrap; }
 .pill.ok { background: var(--ok-soft); color: var(--ok); }
 .pill.bad { background: var(--danger-soft); color: var(--danger); }
@@ -268,3 +274,29 @@ sup.codes { font: 500 11px/1 var(--f-num); color: var(--accent); letter-spacing:
 .site-foot { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: var(--s4); }
 
 a.btn { text-decoration: none; }
+
+/* Impression : seule la zone #print-root est imprimée */
+#print-root { display: none; }
+@page { margin: 12mm; }
+@page paysage { size: A4 landscape; }
+@media print {
+  body.printing { background: #fff; color: #111; padding: 0; }
+  body.printing > *:not(#print-root), body.printing::before { display: none !important; }
+  body.printing #print-root { display: block; }
+  .print-poster { page: paysage; font-size: 11pt; }
+  .print-poster header { display: flex; justify-content: space-between; align-items: baseline; gap: 12pt; border-bottom: 2pt solid #111; padding-bottom: 6pt; margin-bottom: 8pt; }
+  .print-poster h1 { font: 700 24pt/1 var(--f-display); text-transform: uppercase; margin: 0; }
+  .print-poster header p { margin: 0; }
+  .print-poster .matrix { width: 100%; border-collapse: collapse; }
+  .print-poster .matrix th, .print-poster .matrix td { border: .6pt solid #888; padding: 4pt 3pt; text-align: center; font-size: 9pt; color: #111; background: #fff; position: static; }
+  .print-poster .matrix th.dish { text-align: left; min-width: 0; max-width: none; font-size: 10pt; }
+  .print-poster .matrix td { font-size: 12pt; }
+  .print-poster tr { break-inside: avoid; }
+  .print-legend { font-size: 9pt; margin: 6pt 0 0; }
+  .print-chevalets { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  .chevalet { height: 120mm; box-sizing: border-box; border: .6pt dashed #999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8pt; padding: 10mm; text-align: center; break-inside: avoid; }
+  .chev-resto { font: 700 18pt/1.1 var(--f-display); text-transform: uppercase; margin: 0; }
+  .chev-qr img, .chev-qr canvas { width: 45mm !important; height: 45mm !important; }
+  .chev-txt { font-size: 12pt; margin: 0; max-width: 70mm; }
+  .chev-langs { font-size: 9pt; color: #555; margin: 0; }
+}
