@@ -101,6 +101,12 @@ p { margin: 0; }
 .chip.trace { background: var(--warn-soft); color: var(--warn); }
 .chip.none { background: var(--ok-soft); color: var(--ok); }
 .chip.check { background: var(--sunk); color: var(--muted); }
+.chip.jour { background: var(--accent); color: var(--accent-ink); }
+.toggle.accent input:checked + span { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.recipe-wrap { display: flex; flex-direction: column; gap: 2px; }
+.recipe-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; }
+.recipe-actions:empty { display: none; }
+.badge-jour { align-self: flex-start; font: 600 12px/1 var(--f-display); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
 .pill { font: 600 13px/1 var(--f-num); padding: 5px 8px; border-radius: 4px; white-space: nowrap; }
 .pill.ok { background: var(--ok-soft); color: var(--ok); }
 .pill.bad { background: var(--danger-soft); color: var(--danger); }

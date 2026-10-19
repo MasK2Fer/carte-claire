@@ -24,10 +24,10 @@
   var A = {}; ALLERGENES.forEach(function (a, i) { a.n = i + 1; A[a.c] = a; });
 
   var UI = {
-    fr: { title: "Notre carte", choose: "Je suis allergique ou intolérant à :", ok: "Plats que vous pouvez choisir", all: "Tous nos plats", none: "Aucun plat ne convient à votre sélection.", hidden: "Plats qui ne conviennent pas", contains: "Contient", traces: "Peut contenir des traces de", onRequest: "Possible sur demande", free: "Sans allergène à déclarer", warn: "Signalez toujours votre allergie au personnel avant de commander.", privacy: "Vos choix restent sur votre téléphone : rien n'est enregistré." },
-    en: { title: "Our menu", choose: "I am allergic or intolerant to:", ok: "Dishes you can choose", all: "All our dishes", none: "No dish matches your selection.", hidden: "Dishes that are not suitable", contains: "Contains", traces: "May contain traces of", onRequest: "Possible on request", free: "No allergen to declare", warn: "Always tell the staff about your allergy before ordering.", privacy: "Your choices stay on your phone: nothing is saved." },
-    de: { title: "Unsere Karte", choose: "Ich bin allergisch oder unverträglich gegen:", ok: "Gerichte, die Sie wählen können", all: "Alle unsere Gerichte", none: "Kein Gericht passt zu Ihrer Auswahl.", hidden: "Nicht geeignete Gerichte", contains: "Enthält", traces: "Kann Spuren enthalten von", onRequest: "Auf Anfrage möglich", free: "Keine deklarationspflichtigen Allergene", warn: "Bitte informieren Sie das Personal vor der Bestellung über Ihre Allergie.", privacy: "Ihre Auswahl bleibt auf Ihrem Telefon: Es wird nichts gespeichert." },
-    it: { title: "Il nostro menu", choose: "Sono allergico o intollerante a:", ok: "Piatti che puoi scegliere", all: "Tutti i nostri piatti", none: "Nessun piatto è adatto alla tua selezione.", hidden: "Piatti non adatti", contains: "Contiene", traces: "Può contenere tracce di", onRequest: "Possibile su richiesta", free: "Nessun allergene da dichiarare", warn: "Segnala sempre la tua allergia al personale prima di ordinare.", privacy: "Le tue scelte restano sul tuo telefono: non viene salvato nulla." }
+    fr: { special: "Plat du jour", title: "Notre carte", choose: "Je suis allergique ou intolérant à :", ok: "Plats que vous pouvez choisir", all: "Tous nos plats", none: "Aucun plat ne convient à votre sélection.", hidden: "Plats qui ne conviennent pas", contains: "Contient", traces: "Peut contenir des traces de", onRequest: "Possible sur demande", free: "Sans allergène à déclarer", warn: "Signalez toujours votre allergie au personnel avant de commander.", privacy: "Vos choix restent sur votre téléphone : rien n'est enregistré." },
+    en: { special: "Today's special", title: "Our menu", choose: "I am allergic or intolerant to:", ok: "Dishes you can choose", all: "All our dishes", none: "No dish matches your selection.", hidden: "Dishes that are not suitable", contains: "Contains", traces: "May contain traces of", onRequest: "Possible on request", free: "No allergen to declare", warn: "Always tell the staff about your allergy before ordering.", privacy: "Your choices stay on your phone: nothing is saved." },
+    de: { special: "Tagesgericht", title: "Unsere Karte", choose: "Ich bin allergisch oder unverträglich gegen:", ok: "Gerichte, die Sie wählen können", all: "Alle unsere Gerichte", none: "Kein Gericht passt zu Ihrer Auswahl.", hidden: "Nicht geeignete Gerichte", contains: "Enthält", traces: "Kann Spuren enthalten von", onRequest: "Auf Anfrage möglich", free: "Keine deklarationspflichtigen Allergene", warn: "Bitte informieren Sie das Personal vor der Bestellung über Ihre Allergie.", privacy: "Ihre Auswahl bleibt auf Ihrem Telefon: Es wird nichts gespeichert." },
+    it: { special: "Piatto del giorno", title: "Il nostro menu", choose: "Sono allergico o intollerante a:", ok: "Piatti che puoi scegliere", all: "Tutti i nostri piatti", none: "Nessun piatto è adatto alla tua selezione.", hidden: "Piatti non adatti", contains: "Contiene", traces: "Può contenere tracce di", onRequest: "Possibile su richiesta", free: "Nessun allergene da dichiarare", warn: "Segnala sempre la tua allergia al personale prima di ordinare.", privacy: "Le tue scelte restano sul tuo telefono: non viene salvato nulla." }
   };
   var LANGS = ["fr", "en", "de", "it"];
 
@@ -36,12 +36,15 @@
 
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
   function eur(n) { return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"; }
+  // Date du jour à l'heure locale du téléphone (AAAA-MM-JJ) : un plat épuisé ou un plat du jour ne vaut que pour ce jour-là
+  function aujourdhui() { var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
   function aName(c, lang) { return A[c] ? (A[c][lang] || A[c].fr) : c; }
   function nomPlat(d, lang) { return (lang !== "fr" && d.noms && d.noms[lang]) ? d.noms[lang] : d.nom; }
 
   // Contenu de la carte vue par le client, mis en page comme une carte de restaurant :
   // nom du plat, points de conduite, prix, et les numéros d'allergènes en exposant (1 à 14, ordre réglementaire).
-  // data = { resto, plats: [{ nom, noms, prix, contient: [], traces: [], variante: { fr, en, de, it, retire: [] } }] }
+  // data = { resto, plats: [{ nom, noms, prix, contient: [], traces: [], variante: { fr, en, de, it, retire: [] }, ardoise, jour, epuise }] }
+  // Un plat épuisé aujourd'hui disparaît de la carte ; un plat du jour (ardoise) n'y figure que le jour où il est proposé.
   function codes(list) { return list.map(function (x) { return A[x] ? A[x].n : ""; }).join("·"); }
   function carteHTML(data, lang, sel) {
     var u = UI[lang] || UI.fr;
@@ -55,18 +58,21 @@
     });
     h += "</div>";
 
+    var auj = aujourdhui();
+    var plats = data.plats.filter(function (d) { return d.epuise !== auj && (!d.ardoise || d.jour === auj); });
+    plats = plats.filter(function (d) { return d.ardoise; }).concat(plats.filter(function (d) { return !d.ardoise; }));
     var okList = [], noList = [];
-    data.plats.forEach(function (d) {
+    plats.forEach(function (d) {
       var bloque = d.contient.filter(function (x) { return sel.indexOf(x) >= 0; });
       var v = d.variante || { retire: [] }, rv = v.retire || [];
       var sauvable = bloque.length > 0 && v.fr && bloque.every(function (x) { return rv.indexOf(x) >= 0; });
       if (!bloque.length) okList.push({ d: d }); else if (sauvable) okList.push({ d: d, variante: true }); else noList.push({ d: d, bloque: bloque });
     });
-    h += '<p class="menu-rule"><span>' + esc(sel.length ? u.ok : u.all) + (sel.length ? " · " + okList.length + "/" + data.plats.length : "") + "</span></p><div>";
+    h += '<p class="menu-rule"><span>' + esc(sel.length ? u.ok : u.all) + (sel.length ? " · " + okList.length + "/" + plats.length : "") + "</span></p><div>";
     if (!okList.length) h += '<p class="note bad">' + esc(u.none) + "</p>";
     okList.forEach(function (o) {
       var d = o.d, tSel = sel.length ? d.traces.filter(function (x) { return sel.indexOf(x) >= 0; }) : d.traces;
-      h += '<div class="dish"><div class="dish-line"><span class="dish-n">' + esc(nomPlat(d, lang)) + (d.contient.length ? ' <sup class="codes">' + codes(d.contient) + "</sup>" : "") + '</span><span class="lead" aria-hidden="true"></span><span class="num">' + eur(d.prix) + "</span></div>";
+      h += '<div class="dish">' + (d.ardoise ? '<span class="badge-jour">' + esc(u.special) + "</span>" : "") + '<div class="dish-line"><span class="dish-n">' + esc(nomPlat(d, lang)) + (d.contient.length ? ' <sup class="codes">' + codes(d.contient) + "</sup>" : "") + '</span><span class="lead" aria-hidden="true"></span><span class="num">' + eur(d.prix) + "</span></div>";
       if (o.variante) {
         h += '<p class="note ok">' + esc(u.onRequest) + sep + esc(d.variante[lang] || d.variante.fr) + "</p>";
       } else if (!sel.length) {
@@ -94,5 +100,5 @@
   // Carte d'exemple : plats, prix de vente et allergènes seulement
   var EXEMPLE = {"resto":"Le Bistrot d'exemple","lang":"fr","plats":[{"nom":"Velouté de champignons","noms":{"en":"Mushroom velouté","de":"Champignon-Cremesuppe","it":"Vellutata di funghi"},"prix":9,"contient":["lait","celeri"],"traces":[],"variante":{"fr":"Sans crème ni beurre, cuit à l'huile d'olive","en":"Without cream or butter, cooked in olive oil","de":"Ohne Sahne und Butter, mit Olivenöl gekocht","it":"Senza panna né burro, cotto con olio d'oliva","retire":["lait"]}},{"nom":"Moules marinières, frites","noms":{"en":"Mussels marinière with fries","de":"Miesmuscheln Marinière mit Pommes","it":"Cozze alla marinara con patatine"},"prix":17,"contient":["lait","sulfites","mollusques"],"traces":["gluten","poissons"],"variante":{"fr":"","en":"","de":"","it":"","retire":[]}},{"nom":"Saumon, beurre blanc, légumes de saison","noms":{"en":"Salmon, beurre blanc, seasonal vegetables","de":"Lachs, Beurre blanc, Saisongemüse","it":"Salmone, beurre blanc, verdure di stagione"},"prix":22,"contient":["poissons","lait","sulfites"],"traces":[],"variante":{"fr":"Sans beurre blanc, avec un filet d'huile d'olive","en":"Without beurre blanc, with a drizzle of olive oil","de":"Ohne Beurre blanc, mit etwas Olivenöl","it":"Senza beurre blanc, con un filo d'olio d'oliva","retire":["lait","sulfites"]}},{"nom":"Tagliatelles au pesto maison","noms":{"en":"Tagliatelle with homemade pesto","de":"Tagliatelle mit hausgemachtem Pesto","it":"Tagliatelle al pesto della casa"},"prix":15,"contient":["gluten","lait","fruits_coque"],"traces":[],"variante":{"fr":"Pesto sans noisettes","en":"Pesto without hazelnuts","de":"Pesto ohne Haselnüsse","it":"Pesto senza nocciole","retire":["fruits_coque"]}},{"nom":"Moelleux au chocolat","noms":{"en":"Chocolate fondant","de":"Schokoladen-Fondant","it":"Tortino al cioccolato"},"prix":8,"contient":["gluten","oeufs","soja","lait"],"traces":["fruits_coque"],"variante":{"fr":"","en":"","de":"","it":"","retire":[]}}]};
 
-  window.CC = { EXEMPLE: EXEMPLE, ALLERGENES: ALLERGENES, A: A, UI: UI, LANGS: LANGS, esc: esc, eur: eur, aName: aName, carteHTML: carteHTML, lireCarte: lireCarte, ecrireCarte: ecrireCarte };
+  window.CC = { EXEMPLE: EXEMPLE, ALLERGENES: ALLERGENES, A: A, UI: UI, LANGS: LANGS, esc: esc, eur: eur, aName: aName, carteHTML: carteHTML, aujourdhui: aujourdhui, lireCarte: lireCarte, ecrireCarte: ecrireCarte };
 })();
