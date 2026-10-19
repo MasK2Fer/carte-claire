@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1D6A51">
+<title>Notre carte · Carte Claire</title>
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+</head>
+<body style="padding-bottom:24px">
+<main class="client-page">
+  <div class="phone" id="carte" aria-live="polite"></div>
+  <p class="foot">Carte des allergènes réalisée avec Carte Claire · maquette</p>
+</main>
+<script src="commun.js"></script>
+<script>
+(function () {
+  "use strict";
+  // Carte d'exemple : uniquement les plats, prix de vente et allergènes (aucun coût ni ingrédient)
+  var EXEMPLE = {"resto":"Le Bistrot d'exemple","lang":"fr","plats":[{"nom":"Velouté de champignons","noms":{"en":"Mushroom velouté","de":"Champignon-Cremesuppe","it":"Vellutata di funghi"},"prix":9,"contient":["lait","celeri"],"traces":[],"variante":{"fr":"Sans crème ni beurre, cuit à l'huile d'olive","en":"Without cream or butter, cooked in olive oil","de":"Ohne Sahne und Butter, mit Olivenöl gekocht","it":"Senza panna né burro, cotto con olio d'oliva","retire":["lait"]}},{"nom":"Moules marinières, frites","noms":{"en":"Mussels marinière with fries","de":"Miesmuscheln Marinière mit Pommes","it":"Cozze alla marinara con patatine"},"prix":17,"contient":["lait","sulfites","mollusques"],"traces":["gluten","poissons"],"variante":{"fr":"","en":"","de":"","it":"","retire":[]}},{"nom":"Saumon, beurre blanc, légumes de saison","noms":{"en":"Salmon, beurre blanc, seasonal vegetables","de":"Lachs, Beurre blanc, Saisongemüse","it":"Salmone, beurre blanc, verdure di stagione"},"prix":22,"contient":["poissons","lait","sulfites"],"traces":[],"variante":{"fr":"Sans beurre blanc, avec un filet d'huile d'olive","en":"Without beurre blanc, with a drizzle of olive oil","de":"Ohne Beurre blanc, mit etwas Olivenöl","it":"Senza beurre blanc, con un filo d'olio d'oliva","retire":["lait","sulfites"]}},{"nom":"Tagliatelles au pesto maison","noms":{"en":"Tagliatelle with homemade pesto","de":"Tagliatelle mit hausgemachtem Pesto","it":"Tagliatelle al pesto della casa"},"prix":15,"contient":["gluten","lait","fruits_coque"],"traces":[],"variante":{"fr":"Pesto sans noisettes","en":"Pesto without hazelnuts","de":"Pesto ohne Haselnüsse","it":"Pesto senza nocciole","retire":["fruits_coque"]}},{"nom":"Moelleux au chocolat","noms":{"en":"Chocolate fondant","de":"Schokoladen-Fondant","it":"Tortino al cioccolato"},"prix":8,"contient":["gluten","oeufs","soja","lait"],"traces":["fruits_coque"],"variante":{"fr":"","en":"","de":"","it":"","retire":[]}}]};
+  var data = CC.lireCarte() || EXEMPLE;
+  var lang = data.lang || "fr";
+  try { var nav = (navigator.language || "").slice(0, 2).toLowerCase(); if (CC.LANGS.indexOf(nav) >= 0) lang = nav; } catch (e) {}
+  var sel = []; // reste en mémoire : jamais enregistré
+  var box = document.getElementById("carte");
+  function render(focusId) {
+    document.documentElement.lang = lang;
+    box.setAttribute("lang", lang);
+    box.innerHTML = CC.carteHTML(data, lang, sel);
+    if (focusId) { var el = document.getElementById(focusId); if (el) el.focus(); }
+  }
+  box.addEventListener("click", function (e) {
+    var b = e.target.closest('[data-act="lang"]'); if (!b) return;
+    lang = b.dataset.lang; render();
+  });
+  box.addEventListener("change", function (e) {
+    var el = e.target; if (el.dataset.act !== "pick") return;
+    var i = sel.indexOf(el.value);
+    if (el.checked && i < 0) sel.push(el.value); if (!el.checked && i >= 0) sel.splice(i, 1);
+    render(el.id);
+  });
+  render();
+})();
+</script>
+</body>
+</html>

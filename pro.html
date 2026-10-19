@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#1D6A51">
+<title>Carte Claire · Restaurateur</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+</head>
+<body class="locked">
+<div class="gate" id="gate">
+  <form class="gate-card" id="gate-form" autocomplete="off">
+    <span class="app" style="font-family:var(--f-display);font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)">Carte Claire</span>
+    <h2>Espace restaurateur</h2>
+    <p class="small muted">Recettes, tableau des allergènes, coûts et marges. Les clients n'y ont pas accès.</p>
+    <div class="field"><label class="label" for="gate-code">Code d'accès</label><input id="gate-code" type="text" inputmode="numeric" autocomplete="off" placeholder="Code de démonstration : 1234"></div>
+    <p class="err" id="gate-err" hidden>Code incorrect. Pour la démonstration, le code est 1234.</p>
+    <button class="btn primary" type="submit">Entrer</button>
+    <p class="small muted">Dans la vraie version, chaque restaurant aura son compte avec mot de passe.</p>
+    <a class="small" href="carte.html" style="color:var(--accent)">Je suis client : voir la carte</a>
+  </form>
+</div>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="app">Carte Claire</span>
+      <input id="resto" class="resto" type="text" aria-label="Nom du restaurant" value="">
+    </div>
+    <span class="demo-tag">Maquette</span>
+  </header>
+  <p class="intro">Espace restaurateur de démonstration, avec des données d'exemple. Tes saisies restent dans ce navigateur et mettent à jour la carte client sur ce même téléphone.</p>
+  <main id="view" class="wrap" aria-live="polite"></main>
+</div>
+
+<nav class="tabs" role="tablist" aria-label="Sections">
+  <button class="tab" role="tab" id="tab-recettes" data-tab="recettes" aria-selected="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Recettes</button>
+  <button class="tab" role="tab" id="tab-allergenes" data-tab="allergenes" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16M15 4v16"/></svg>Allergènes</button>
+  <button class="tab" role="tab" id="tab-carte" data-tab="carte" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h2v2h-2zM18 18h2v2h-2zM14 18h2M18 14h2"/></svg>Carte client</button>
+  <button class="tab" role="tab" id="tab-marges" data-tab="marges" aria-selected="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>Marges</button>
+</nav>
+
+<div id="sheet-root"></div>
+<div id="toast-root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="commun.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ---------- Référentiels (partagés avec la carte client) ----------
+  var ALLERGENES = CC.ALLERGENES, A = CC.A, UI = CC.UI;
+
+  // Base d'ingrédients courants : allergènes usuels et prix d'EXEMPLE (à remplacer par les vrais prix)
+  function ING(id, nom, unite, prix, al) { return { id: id, nom: nom, unite: unite, prix: prix, al: al || [] }; }
+  var BASE = [
+    ING("farine", "Farine de blé T55", "kg", 0.90, ["gluten"]),
+    ING("pain", "Pain de campagne", "kg", 4.50, ["gluten"]),
+    ING("pates", "Pâtes sèches (blé dur)", "kg", 2.20, ["gluten"]),
+    ING("beurre", "Beurre doux", "kg", 9.50, ["lait"]),
+    ING("creme", "Crème liquide 35 %", "L", 5.20, ["lait"]),
+    ING("lait", "Lait entier", "L", 1.10, ["lait"]),
+    ING("parmesan", "Parmesan", "kg", 22.00, ["lait"]),
+    ING("chevre", "Fromage de chèvre frais", "kg", 14.00, ["lait"]),
+    ING("oeuf", "Œuf", "pièce", 0.28, ["oeufs"]),
+    ING("moutarde", "Moutarde de Dijon", "kg", 6.50, ["moutarde"]),
+    ING("huile_olive", "Huile d'olive", "L", 9.00, []),
+    ING("huile_tournesol", "Huile de tournesol", "L", 2.40, []),
+    ING("saumon", "Saumon frais", "kg", 24.00, ["poissons"]),
+    ING("cabillaud", "Cabillaud", "kg", 22.00, ["poissons"]),
+    ING("anchois", "Anchois", "kg", 30.00, ["poissons"]),
+    ING("crevettes", "Crevettes", "kg", 18.00, ["crustaces"]),
+    ING("moules", "Moules", "kg", 4.50, ["mollusques"]),
+    ING("calamars", "Calamars", "kg", 12.00, ["mollusques"]),
+    ING("poulet", "Poulet fermier", "kg", 9.00, []),
+    ING("boeuf", "Paleron de bœuf", "kg", 16.00, []),
+    ING("agneau", "Épaule d'agneau", "kg", 18.00, []),
+    ING("celeri", "Céleri branche", "kg", 3.00, ["celeri"]),
+    ING("carotte", "Carottes", "kg", 1.20, []),
+    ING("oignon", "Oignons", "kg", 1.30, []),
+    ING("ail", "Ail", "kg", 6.00, []),
+    ING("tomate", "Tomates", "kg", 2.80, []),
+    ING("courgette", "Courgettes", "kg", 2.20, []),
+    ING("pdt", "Pommes de terre", "kg", 1.10, []),
+    ING("champignon", "Champignons de Paris", "kg", 4.50, []),
+    ING("salade", "Mesclun", "kg", 8.00, []),
+    ING("noisettes", "Noisettes", "kg", 18.00, ["fruits_coque"]),
+    ING("amandes", "Amandes en poudre", "kg", 14.00, ["fruits_coque"]),
+    ING("cacahuetes", "Cacahuètes", "kg", 7.00, ["arachides"]),
+    ING("soja_sauce", "Sauce soja", "L", 6.00, ["soja", "gluten"]),
+    ING("sesame", "Graines de sésame", "kg", 9.00, ["sesame"]),
+    ING("vin_blanc", "Vin blanc de cuisine", "L", 4.00, ["sulfites"]),
+    ING("vinaigre", "Vinaigre de vin", "L", 2.50, ["sulfites"]),
+    ING("miel", "Miel", "kg", 12.00, []),
+    ING("sucre", "Sucre", "kg", 1.10, []),
+    ING("chocolat", "Chocolat noir 70 %", "kg", 16.00, ["soja"]),
+    ING("basilic", "Basilic", "botte", 1.20, []),
+    ING("citron", "Citron", "pièce", 0.35, []),
+    ING("sel_poivre", "Sel et poivre", "kg", 2.00, [])
+  ];
+
+  function L(ing, q) { return { ing: ing, q: q }; }
+  function SAMPLE() {
+    return {
+      resto: "Le Bistrot d'exemple",
+      cible: 25,
+      lang: "fr",
+      ingredients: JSON.parse(JSON.stringify(BASE)),
+      recettes: [
+        { id: "r1", nom: "Velouté de champignons", noms: { en: "Mushroom velouté", de: "Champignon-Cremesuppe", it: "Vellutata di funghi" }, prix: 9,
+          lignes: [L("champignon", 0.15), L("oignon", 0.03), L("beurre", 0.015), L("creme", 0.04), L("celeri", 0.02)],
+          traces: [], tracesNote: "",
+          variante: { fr: "Sans crème ni beurre, cuit à l'huile d'olive", en: "Without cream or butter, cooked in olive oil", de: "Ohne Sahne und Butter, mit Olivenöl gekocht", it: "Senza panna né burro, cotto con olio d'oliva", retire: ["lait"] }, statut: "ok" },
+        { id: "r2", nom: "Moules marinières, frites", noms: { en: "Mussels marinière with fries", de: "Miesmuscheln Marinière mit Pommes", it: "Cozze alla marinara con patatine" }, prix: 17,
+          lignes: [L("moules", 0.45), L("vin_blanc", 0.05), L("oignon", 0.03), L("beurre", 0.01), L("creme", 0.03), L("pdt", 0.25), L("huile_tournesol", 0.03)],
+          traces: ["poissons", "gluten"], tracesNote: "Frites cuites dans la friteuse commune (poisson pané)",
+          variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok" },
+        { id: "r3", nom: "Saumon, beurre blanc, légumes de saison", noms: { en: "Salmon, beurre blanc, seasonal vegetables", de: "Lachs, Beurre blanc, Saisongemüse", it: "Salmone, beurre blanc, verdure di stagione" }, prix: 22,
+          lignes: [L("saumon", 0.16), L("beurre", 0.03), L("vin_blanc", 0.03), L("courgette", 0.12), L("carotte", 0.08), L("citron", 0.5)],
+          traces: [], tracesNote: "",
+          variante: { fr: "Sans beurre blanc, avec un filet d'huile d'olive", en: "Without beurre blanc, with a drizzle of olive oil", de: "Ohne Beurre blanc, mit etwas Olivenöl", it: "Senza beurre blanc, con un filo d'olio d'oliva", retire: ["lait", "sulfites"] }, statut: "ok" },
+        { id: "r4", nom: "Tagliatelles au pesto maison", noms: { en: "Tagliatelle with homemade pesto", de: "Tagliatelle mit hausgemachtem Pesto", it: "Tagliatelle al pesto della casa" }, prix: 15,
+          lignes: [L("pates", 0.12), L("basilic", 0.5), L("parmesan", 0.03), L("huile_olive", 0.03), L("noisettes", 0.02), L("ail", 0.005)],
+          traces: [], tracesNote: "",
+          variante: { fr: "Pesto sans noisettes", en: "Pesto without hazelnuts", de: "Pesto ohne Haselnüsse", it: "Pesto senza nocciole", retire: ["fruits_coque"] }, statut: "ok" },
+        { id: "r5", nom: "Moelleux au chocolat", noms: { en: "Chocolate fondant", de: "Schokoladen-Fondant", it: "Tortino al cioccolato" }, prix: 8,
+          lignes: [L("chocolat", 0.06), L("beurre", 0.04), L("oeuf", 1.5), L("sucre", 0.04), L("farine", 0.015)],
+          traces: ["fruits_coque"], tracesNote: "Préparé à côté des desserts aux noisettes",
+          variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok" }
+      ],
+      maj: new Date().toISOString().slice(0, 10)
+    };
+  }
+
+  // ---------- État ----------
+  var KEY = "carte-claire-maquette-v1";
+  var state;
+  try { state = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { state = null; }
+  if (!state || !state.recettes) state = SAMPLE();
+  var tab = "recettes";
+  try { var t0 = (location.hash || "").replace("#", ""); if (["recettes", "allergenes", "carte", "marges"].indexOf(t0) >= 0) tab = t0; } catch (e) {}
+  var clientSel = []; // jamais enregistré : reste en mémoire seulement
+  var pendingInvoice = null;
+  var confirmReset = false;
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} CC.ecrireCarte(snapshot()); }
+
+  // ---------- Outils ----------
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+  function eur(n) { return n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €"; }
+  function pct(n) { return (n * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1, minimumFractionDigits: 1 }) + " %"; }
+  function ing(id) { for (var i = 0; i < state.ingredients.length; i++) if (state.ingredients[i].id === id) return state.ingredients[i]; return null; }
+  function bigUnit(u) { return u === "kg" || u === "L"; }
+  function smallUnit(u) { return u === "kg" ? "g" : u === "L" ? "ml" : u; }
+  function uniq(a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }); }
+  function order(codes) { return ALLERGENES.map(function (a) { return a.c; }).filter(function (c) { return codes.indexOf(c) >= 0; }); }
+  function contient(r) { var all = []; r.lignes.forEach(function (l) { var g = ing(l.ing); if (g) all = all.concat(g.al); }); return order(uniq(all)); }
+  function traces(r) { var c = contient(r); return order((r.traces || []).filter(function (x) { return c.indexOf(x) < 0; })); }
+  function cout(r) { return r.lignes.reduce(function (s, l) { var g = ing(l.ing); return s + (g ? g.prix * l.q : 0); }, 0); }
+  function ht(ttc) { return ttc / 1.10; } // TVA 10 % sur place
+  function ratio(r) { return r.prix > 0 ? cout(r) / ht(r.prix) : 0; }
+  function conseille(r) { var c = cout(r); var p = c / (state.cible / 100) * 1.10; return Math.ceil(p * 2) / 2; }
+  function nomPlat(r, lang) { return (lang !== "fr" && r.noms && r.noms[lang]) ? r.noms[lang] : r.nom; }
+  function aName(c, lang) { return A[c][lang] || A[c].fr; }
+  function toast(msg) {
+    var root = document.getElementById("toast-root");
+    root.innerHTML = '<div class="toast" role="status">' + esc(msg) + "</div>";
+    clearTimeout(toast.t); toast.t = setTimeout(function () { root.innerHTML = ""; }, 2600);
+  }
+  function touch() { state.maj = new Date().toISOString().slice(0, 10); save(); }
+  function frDate(iso) { var p = iso.split("-"); return p[2] + "/" + p[1] + "/" + p[0]; }
+
+  // ---------- Vues ----------
+  function render() {
+    document.getElementById("resto").value = state.resto;
+    Array.prototype.forEach.call(document.querySelectorAll(".tab"), function (b) { b.setAttribute("aria-selected", b.dataset.tab === tab ? "true" : "false"); });
+    var v = document.getElementById("view");
+    if (tab === "recettes") v.innerHTML = vRecettes();
+    if (tab === "allergenes") v.innerHTML = vAllergenes();
+    if (tab === "carte") { v.innerHTML = vCarte(); drawQR(); }
+    if (tab === "marges") v.innerHTML = vMarges();
+  }
+
+  function chipsFor(r) {
+    var c = contient(r), t = traces(r), h = "";
+    c.forEach(function (x) { h += '<span class="chip">' + esc(A[x].fr) + "</span>"; });
+    t.forEach(function (x) { h += '<span class="chip trace">Traces : ' + esc(A[x].fr) + "</span>"; });
+    if (!c.length && !t.length) h = '<span class="chip none">Aucun allergène à déclarer</span>';
+    return h;
+  }
+
+  function vRecettes() {
+    var h = '<div class="row" style="justify-content:space-between"><h2>Fiches recettes</h2><span class="muted small">' + state.recettes.length + " plats</span></div>";
+    h += '<div class="row"><button class="btn primary" data-act="new">+ Nouvelle recette</button>' +
+         '<label class="btn" for="import-photo">Importer une photo de la carte</label>' +
+         '<input id="import-photo" type="file" accept="image/*" hidden></div>';
+    h += '<p class="small muted">L\'import photo est simulé dans cette maquette : il ajoute une recette pré-remplie à vérifier. La vraie version lira la carte.</p>';
+    h += '<div class="list">';
+    state.recettes.forEach(function (r) {
+      var rr = ratio(r), over = rr > state.cible / 100;
+      h += '<button class="card recipe" data-act="edit" data-id="' + esc(r.id) + '">' +
+        '<div class="recipe-head"><h3>' + esc(r.nom) + '</h3><span class="price">' + eur(r.prix) + "</span></div>" +
+        '<div class="chips">' + (r.statut === "a_verifier" ? '<span class="chip check">À vérifier</span>' : "") + chipsFor(r) + "</div>" +
+        '<div class="meta"><span>Coût matière <span class="num">' + eur(cout(r)) + '</span></span><span class="pill ' + (over ? "bad" : "ok") + '">' + pct(rr) + "</span></div>" +
+        "</button>";
+    });
+    h += "</div>";
+    return h;
+  }
+
+  function vAllergenes() {
+    var h = '<div class="row" style="justify-content:space-between;align-items:baseline"><h2>Tableau des allergènes</h2><span class="muted small">Mis à jour le <span class="num">' + frDate(state.maj) + "</span></span></div>";
+    h += '<p class="small muted">Document écrit à tenir à disposition des clients pour les 14 allergènes à déclaration obligatoire. Il se met à jour tout seul quand une recette change.</p>';
+    h += '<div class="legend"><span><span class="mark c" aria-hidden="true">●</span> Contient</span><span><span class="mark t" aria-hidden="true">!</span> Traces possibles</span></div>';
+    h += '<div class="table-scroll"><table class="matrix"><thead><tr><th class="dish" scope="col">Plat</th>';
+    ALLERGENES.forEach(function (a) { h += '<th scope="col" title="' + esc(a.long || a.fr) + '">' + esc(a.fr) + "</th>"; });
+    h += "</tr></thead><tbody>";
+    state.recettes.forEach(function (r) {
+      var c = contient(r), t = traces(r);
+      h += '<tr><th class="dish" scope="row">' + esc(r.nom) + "</th>";
+      ALLERGENES.forEach(function (a) {
+        var cell = c.indexOf(a.c) >= 0 ? '<span class="mark c" aria-label="Contient">●</span>' : t.indexOf(a.c) >= 0 ? '<span class="mark t" aria-label="Traces possibles">!</span>' : '<span class="sr" aria-label="Non"></span>';
+        h += "<td>" + cell + "</td>";
+      });
+      h += "</tr>";
+    });
+    h += "</tbody></table></div>";
+    h += '<p class="small muted">Dans la vraie version : export PDF à imprimer et afficher, avec la date de mise à jour.</p>';
+    return h;
+  }
+
+  // Ce que la carte client a le droit de recevoir : plats, prix de vente, allergènes. Rien d'autre.
+  function snapshot() {
+    return {
+      resto: state.resto,
+      lang: state.lang || "fr",
+      maj: state.maj,
+      plats: state.recettes.map(function (r) {
+        return { nom: r.nom, noms: r.noms || {}, prix: r.prix, contient: contient(r), traces: traces(r),
+          variante: { fr: r.variante.fr || "", en: r.variante.en || "", de: r.variante.de || "", it: r.variante.it || "", retire: (r.variante.retire || []).slice() } };
+      })
+    };
+  }
+
+  function vCarte() {
+    var lang = state.lang || "fr";
+    var h = '<h2>Carte client</h2><p class="small muted">Aperçu de ce que voit le client après avoir scanné le QR code. Il ne voit que la carte : ni recettes, ni coûts, ni marges.</p>';
+    h += '<div class="client-layout"><div class="phone" lang="' + lang + '">' + CC.carteHTML(snapshot(), lang, clientSel) + "</div>";
+    h += '<div class="qr-box"><div id="qr" aria-label="QR code de la carte client"></div><p class="small muted">QR code à poser sur les tables.</p><a class="btn" href="carte.html">Ouvrir la carte client</a></div>';
+    h += "</div>";
+    return h;
+  }
+
+  function drawQR() {
+    var box = document.getElementById("qr");
+    if (!box) return;
+    try {
+      var url = new URL("carte.html", location.href).href;
+      new QRCode(box, { text: url, width: 160, height: 160, colorDark: "#111111", colorLight: "#FFFFFF" });
+    } catch (e) { box.innerHTML = '<p class="small muted" style="line-height:1.4">QR code indisponible ici.</p>'; }
+  }
+
+  function vMarges() {
+    var cible = state.cible / 100;
+    var rs = state.recettes.slice().sort(function (a, b) { return ratio(b) - ratio(a); });
+    var over = rs.filter(function (r) { return ratio(r) > cible; });
+    var moy = rs.length ? rs.reduce(function (s, r) { return s + ratio(r); }, 0) / rs.length : 0;
+    var h = '<h2>Coût matière et marges</h2>';
+    h += '<div class="row"><label for="cible" class="small">Coût matière visé</label><input id="cible" class="target-input num" type="number" min="5" max="80" step="1" value="' + state.cible + '"><span class="small muted">% du prix hors taxes (TVA sur place 10 %)</span></div>';
+    h += '<div class="kpis"><div class="kpi"><span class="label">Plats</span><b>' + rs.length + '</b></div><div class="kpi"><span class="label">Moyenne</span><b>' + pct(moy) + '</b></div><div class="kpi"><span class="label">Au-dessus</span><b style="color:var(--' + (over.length ? "danger" : "ok") + ')">' + over.length + "</b></div></div>";
+    if (over.length) {
+      h += '<div class="alert" role="alert"><b>' + over.length + (over.length > 1 ? " plats dépassent" : " plat dépasse") + " le coût matière visé</b>";
+      over.forEach(function (r) { h += '<span class="small">' + esc(r.nom) + " : " + pct(ratio(r)) + ". Prix minimum conseillé : <span class=\"num\">" + eur(conseille(r)) + "</span> au lieu de " + eur(r.prix) + ".</span>"; });
+      h += "</div>";
+    } else {
+      h += '<div class="alert okay"><b>Tous les plats sont sous le coût matière visé.</b></div>';
+    }
+    h += '<div class="card"><p class="label">Plat par plat</p>';
+    rs.forEach(function (r) {
+      var rr = ratio(r), w = Math.min(rr / 0.6, 1) * 100, tg = Math.min(cible / 0.6, 1) * 100;
+      h += '<div class="bar-row"><span>' + esc(r.nom) + '</span><span class="num small">' + eur(cout(r)) + " · " + pct(rr) + '</span><div class="bar" aria-hidden="true"><i class="' + (rr > cible ? "over" : "") + '" style="width:' + w.toFixed(1) + '%"></i><span class="target" style="left:' + tg.toFixed(1) + '%"></span></div></div>';
+    });
+    h += '<p class="small muted">Le trait noir marque le coût matière visé.</p></div>';
+
+    h += '<div class="card"><div class="row" style="justify-content:space-between"><p class="label">Prix des ingrédients utilisés</p>' +
+         '<label class="btn" for="invoice-photo">Photo de facture</label><input id="invoice-photo" type="file" accept="image/*" hidden></div>';
+    if (pendingInvoice) {
+      h += '<div class="confirm"><b>Facture lue (simulation) : confirme chaque prix</b>';
+      pendingInvoice.forEach(function (p, i) {
+        var g = ing(p.id);
+        h += '<label class="inv-line" for="inv-' + i + '"><input type="checkbox" id="inv-' + i + '" data-act="inv" data-i="' + i + '"' + (p.ok ? " checked" : "") + "><span>" + esc(g.nom) + '</span><span class="num small">' + eur(g.prix) + " → " + eur(p.prix) + " / " + esc(g.unite) + "</span></label>";
+      });
+      h += '<div class="row"><button class="btn primary" data-act="inv-apply">Appliquer les prix cochés</button><button class="btn" data-act="inv-cancel">Annuler</button></div></div>';
+    }
+    var used = uniq([].concat.apply([], state.recettes.map(function (r) { return r.lignes.map(function (l) { return l.ing; }); })));
+    h += '<details><summary>Voir et modifier les ' + state.ingredients.filter(function (g) { return used.indexOf(g.id) >= 0; }).length + ' prix</summary><div style="overflow-x:auto"><table class="ing-table"><thead><tr><th>Ingrédient</th><th class="r">Prix</th><th>Unité</th></tr></thead><tbody>';
+    state.ingredients.filter(function (g) { return used.indexOf(g.id) >= 0; }).forEach(function (g) {
+      h += "<tr><td>" + esc(g.nom) + (g.src ? ' <span class="badge-src">(' + esc(g.src) + ")</span>" : "") + '</td><td class="r"><input class="price-input num" type="number" min="0" step="0.01" id="prix-' + esc(g.id) + '" data-act="prix" data-id="' + esc(g.id) + '" value="' + g.prix.toFixed(2) + '" aria-label="Prix de ' + esc(g.nom) + '"></td><td class="muted small">€ / ' + esc(g.unite) + "</td></tr>";
+    });
+    h += "</tbody></table></div></details><p class=\"small muted\">Prix d'exemple, à remplacer par les vrais prix fournisseurs. La photo de facture est simulée dans cette maquette.</p></div>";
+
+    h += '<div class="card"><p class="label">Maquette</p>';
+    if (!confirmReset) h += '<button class="btn danger" data-act="reset">Revenir aux données d\'exemple</button>';
+    else h += '<div class="confirm"><b>Effacer tes saisies et revenir à l\'exemple ?</b><div class="row"><button class="btn danger" data-act="reset-yes">Oui, effacer</button><button class="btn" data-act="reset-no">Garder mes saisies</button></div></div>';
+    h += "</div>";
+    return h;
+  }
+
+  // ---------- Feuille d'édition ----------
+  var draft = null, draftConfirmDelete = false;
+  function openEditor(id) {
+    document.getElementById("toast-root").innerHTML = "";
+    var r = id ? state.recettes.filter(function (x) { return x.id === id; })[0] : null;
+    draft = r ? JSON.parse(JSON.stringify(r)) : { id: "r" + Date.now(), nom: "", noms: {}, prix: 12, lignes: [], traces: [], tracesNote: "", variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok", _new: true };
+    draftConfirmDelete = false;
+    renderSheet();
+  }
+  function closeEditor() { draft = null; document.getElementById("sheet-root").innerHTML = ""; }
+  function renderSheet() {
+    if (!draft) return;
+    var r = draft, c = contient(r), t = traces(r), rr = ratio(r), over = rr > state.cible / 100;
+    var opts = state.ingredients.slice().sort(function (a, b) { return a.nom.localeCompare(b.nom, "fr"); });
+    var h = '<div class="sheet-bg" data-act="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">';
+    h += '<div class="sheet-head"><h2 id="sheet-title">' + (r._new ? "Nouvelle recette" : "Fiche recette") + '</h2><button class="icon-btn" data-act="close" aria-label="Fermer">×</button></div>';
+    if (r.statut === "a_verifier") h += '<div class="alert" style="background:var(--warn-soft);color:var(--warn)"><b>Pré-remplie depuis la photo : vérifie les ingrédients et les quantités.</b></div>';
+    h += '<div class="grid2"><div class="field"><label class="label" for="f-nom">Nom du plat</label><input id="f-nom" type="text" data-f="nom" value="' + esc(r.nom) + '" placeholder="Ex. Salade de chèvre chaud"></div>' +
+         '<div class="field"><label class="label" for="f-prix">Prix TTC (€)</label><input id="f-prix" type="number" min="0" step="0.5" data-f="prix" value="' + r.prix + '"></div></div>';
+
+    h += '<div class="field"><span class="label">Ingrédients par portion</span>';
+    r.lignes.forEach(function (l, i) {
+      var g = ing(l.ing); if (!g) return;
+      var shown = bigUnit(g.unite) ? Math.round(l.q * 1000 * 10) / 10 : l.q;
+      h += '<div class="line-row"><span>' + esc(g.nom) + (g.al.length ? ' <span class="small" style="color:var(--danger)">· ' + esc(g.al.map(function (x) { return A[x].fr; }).join(", ")) + "</span>" : "") + (g.src ? ' <span class="badge-src">(' + esc(g.src) + ")</span>" : "") + "</span>" +
+           '<span class="row" style="flex-wrap:nowrap;gap:4px"><input type="number" min="0" step="any" id="q-' + i + '" data-act="q" data-i="' + i + '" value="' + shown + '" aria-label="Quantité de ' + esc(g.nom) + '"><span class="unit">' + esc(smallUnit(g.unite)) + "</span></span>" +
+           '<button class="icon-btn" data-act="del-line" data-i="' + i + '" aria-label="Retirer ' + esc(g.nom) + '">−</button></div>';
+    });
+    h += '<div class="row"><select id="add-ing" aria-label="Ajouter un ingrédient"><option value="">+ Ajouter un ingrédient…</option>';
+    opts.forEach(function (g) { h += '<option value="' + esc(g.id) + '">' + esc(g.nom) + "</option>"; });
+    h += '</select><button class="btn" data-act="scan">Scanner un code-barres</button></div>';
+    h += '<p class="small muted">Le scan est simulé : il ajoute un produit d\'exemple dont les allergènes viendraient d\'Open Food Facts, à confirmer.</p></div>';
+
+    h += '<div class="field"><span class="label">Risques de contamination croisée</span><div class="check-grid">';
+    ALLERGENES.forEach(function (a) {
+      if (c.indexOf(a.c) >= 0) return;
+      h += '<label class="toggle"><input type="checkbox" id="tr-' + a.c + '" data-act="trace" value="' + a.c + '"' + (r.traces.indexOf(a.c) >= 0 ? " checked" : "") + "><span>" + esc(a.fr) + "</span></label>";
+    });
+    h += '</div><input type="text" id="f-tracesNote" data-f="tracesNote" value="' + esc(r.tracesNote || "") + '" placeholder="Pourquoi ? Ex. friteuse commune, même plan de travail"></div>';
+
+    h += '<div class="field"><span class="label">Variante possible sur demande</span><input type="text" id="f-variante" data-f="variante" value="' + esc(r.variante.fr || "") + '" placeholder="Ex. sans sauce"><div class="check-grid">';
+    c.forEach(function (x) { h += '<label class="toggle"><input type="checkbox" id="vr-' + x + '" data-act="vretire" value="' + x + '"' + (r.variante.retire.indexOf(x) >= 0 ? " checked" : "") + "><span>Retire : " + esc(A[x].fr) + "</span></label>"; });
+    if (!c.length) h += '<span class="small muted">Aucun allergène à retirer.</span>';
+    h += "</div></div>";
+
+    h += '<div class="live"><p class="label">Résultat</p><div class="chips">' + (c.length || t.length ? "" : '<span class="chip none">Aucun allergène à déclarer</span>');
+    c.forEach(function (x) { h += '<span class="chip">' + esc(A[x].fr) + "</span>"; });
+    t.forEach(function (x) { h += '<span class="chip trace">Traces : ' + esc(A[x].fr) + "</span>"; });
+    h += '</div><div class="meta"><span>Coût matière <span class="num">' + eur(cout(r)) + '</span></span><span class="pill ' + (over ? "bad" : "ok") + '">' + pct(rr) + '</span><span>Prix minimum pour tenir ' + state.cible + ' % : <span class="num">' + eur(conseille(r)) + "</span></span></div></div>";
+
+    h += '<div class="row" style="justify-content:space-between"><button class="btn primary" data-act="save"' + (r.nom.trim() && r.lignes.length ? "" : " disabled") + ">Enregistrer la fiche</button>";
+    if (!r._new) h += draftConfirmDelete ? '<span class="row"><button class="btn danger" data-act="del-yes">Oui, supprimer</button><button class="btn" data-act="del-no">Annuler</button></span>' : '<button class="btn danger" data-act="del">Supprimer</button>';
+    h += "</div></div></div>";
+    var root = document.getElementById("sheet-root");
+    var active = document.activeElement && document.activeElement.id;
+    var caret = null; try { caret = document.activeElement.selectionStart; } catch (e) {}
+    root.innerHTML = h;
+    if (active) { var el = document.getElementById(active); if (el) { el.focus(); try { if (caret != null && el.setSelectionRange && el.type === "text") el.setSelectionRange(caret, caret); } catch (e) {} } }
+  }
+
+  // ---------- Événements ----------
+  document.querySelector(".tabs").addEventListener("click", function (e) {
+    var b = e.target.closest(".tab"); if (!b) return;
+    tab = b.dataset.tab; confirmReset = false; render(); window.scrollTo(0, 0);
+  });
+  document.getElementById("resto").addEventListener("input", function (e) { state.resto = e.target.value; save(); });
+
+  document.getElementById("view").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-act]"); if (!b) return;
+    var act = b.dataset.act;
+    if (act === "new") openEditor(null);
+    if (act === "edit") openEditor(b.dataset.id);
+    if (act === "lang") { state.lang = b.dataset.lang; save(); render(); }
+    if (act === "inv-apply") {
+      var n = 0;
+      pendingInvoice.forEach(function (p) { if (p.ok) { ing(p.id).prix = p.prix; n++; } });
+      pendingInvoice = null; touch(); render(); toast(n + " prix mis à jour");
+    }
+    if (act === "inv-cancel") { pendingInvoice = null; render(); }
+    if (act === "reset") { confirmReset = true; render(); }
+    if (act === "reset-no") { confirmReset = false; render(); }
+    if (act === "reset-yes") { state = SAMPLE(); confirmReset = false; pendingInvoice = null; save(); render(); toast("Données d'exemple rétablies"); }
+  });
+
+  document.getElementById("view").addEventListener("change", function (e) {
+    var el = e.target;
+    if (el.dataset.act === "pick") {
+      var v = el.value, i = clientSel.indexOf(v);
+      if (el.checked && i < 0) clientSel.push(v); if (!el.checked && i >= 0) clientSel.splice(i, 1);
+      render(); var again = document.getElementById(el.id); if (again) again.focus();
+    }
+    if (el.dataset.act === "inv") { pendingInvoice[+el.dataset.i].ok = el.checked; }
+    if (el.dataset.act === "prix") { var g = ing(el.dataset.id), p = parseFloat(el.value); if (g && p >= 0) { g.prix = p; touch(); render(); } }
+    if (el.id === "cible") { var c = parseFloat(el.value); if (c > 0 && c < 100) { state.cible = c; save(); render(); } }
+    if (el.id === "import-photo" && el.files && el.files.length) {
+      var r = { id: "r" + Date.now(), nom: "Salade de chèvre chaud, miel et noisettes", noms: {}, prix: 14,
+        lignes: [L("salade", 0.08), L("chevre", 0.08), L("pain", 0.04), L("miel", 0.01), L("noisettes", 0.015), L("huile_olive", 0.015), L("vinaigre", 0.005), L("moutarde", 0.003)],
+        traces: [], tracesNote: "", variante: { fr: "Sans noisettes", en: "", de: "", it: "", retire: ["fruits_coque"] }, statut: "a_verifier" };
+      state.recettes.unshift(r); touch(); render(); openEditor(r.id); toast("Recette pré-remplie : à vérifier");
+    }
+    if (el.id === "invoice-photo" && el.files && el.files.length) {
+      pendingInvoice = [{ id: "saumon", prix: 32.00, ok: true }, { id: "beurre", prix: 12.80, ok: true }, { id: "creme", prix: 5.40, ok: true }];
+      render();
+    }
+  });
+
+  var sheetRoot = document.getElementById("sheet-root");
+  sheetRoot.addEventListener("click", function (e) {
+    if (!draft) return;
+    if (e.target.dataset && e.target.dataset.act === "sheet-bg") { closeEditor(); return; }
+    var b = e.target.closest("[data-act]"); if (!b) return;
+    var act = b.dataset.act;
+    if (act === "close") closeEditor();
+    if (act === "del-line") { draft.lignes.splice(+b.dataset.i, 1); renderSheet(); }
+    if (act === "scan") {
+      if (!ing("pesto_bocal")) state.ingredients.push({ id: "pesto_bocal", nom: "Sauce pesto en bocal (exemple scanné)", unite: "kg", prix: 18.00, al: ["lait", "fruits_coque"], src: "Open Food Facts · à confirmer" });
+      draft.lignes.push(L("pesto_bocal", 0.03)); save(); renderSheet(); toast("Produit scanné ajouté : allergènes à confirmer");
+    }
+    if (act === "save") {
+      var clean = JSON.parse(JSON.stringify(draft)); delete clean._new; if (clean.statut === "a_verifier") clean.statut = "ok";
+      clean.variante.retire = clean.variante.retire.filter(function (x) { return contient(clean).indexOf(x) >= 0; });
+      clean.traces = clean.traces.filter(function (x) { return contient(clean).indexOf(x) < 0; });
+      var i = -1; state.recettes.forEach(function (x, k) { if (x.id === clean.id) i = k; });
+      // Nom ou variante modifiés : les traductions d'exemple ne correspondent plus, la carte retombe sur le français
+      if (i >= 0) {
+        var avant = state.recettes[i];
+        if (avant.nom !== clean.nom) clean.noms = {};
+        if ((avant.variante.fr || "") !== (clean.variante.fr || "")) { clean.variante.en = ""; clean.variante.de = ""; clean.variante.it = ""; }
+      }
+      if (i >= 0) state.recettes[i] = clean; else state.recettes.unshift(clean);
+      touch(); closeEditor(); render(); toast("Fiche enregistrée");
+    }
+    if (act === "del") { draftConfirmDelete = true; renderSheet(); }
+    if (act === "del-no") { draftConfirmDelete = false; renderSheet(); }
+    if (act === "del-yes") { state.recettes = state.recettes.filter(function (x) { return x.id !== draft.id; }); touch(); closeEditor(); render(); toast("Recette supprimée"); }
+  });
+  sheetRoot.addEventListener("input", function (e) {
+    if (!draft) return;
+    var el = e.target, f = el.dataset.f;
+    if (f === "nom") { draft.nom = el.value; var sb = sheetRoot.querySelector('[data-act="save"]'); if (sb) sb.disabled = !(draft.nom.trim() && draft.lignes.length); }
+    if (f === "tracesNote") draft.tracesNote = el.value;
+    if (f === "variante") draft.variante.fr = el.value;
+  });
+  sheetRoot.addEventListener("change", function (e) {
+    if (!draft) return;
+    var el = e.target;
+    if (el.dataset.f === "prix") { draft.prix = Math.max(0, parseFloat(el.value) || 0); renderSheet(); }
+    if (el.dataset.act === "q") {
+      var l = draft.lignes[+el.dataset.i], g = ing(l.ing), v = Math.max(0, parseFloat(el.value) || 0);
+      l.q = bigUnit(g.unite) ? v / 1000 : v; renderSheet();
+    }
+    if (el.id === "add-ing" && el.value) {
+      var g2 = ing(el.value);
+      draft.lignes.push(L(el.value, bigUnit(g2.unite) ? 0.05 : 1)); renderSheet();
+      var last = document.getElementById("q-" + (draft.lignes.length - 1)); if (last) last.focus();
+    }
+    if (el.dataset.act === "trace") {
+      var i = draft.traces.indexOf(el.value);
+      if (el.checked && i < 0) draft.traces.push(el.value); if (!el.checked && i >= 0) draft.traces.splice(i, 1); renderSheet();
+    }
+    if (el.dataset.act === "vretire") {
+      var j = draft.variante.retire.indexOf(el.value);
+      if (el.checked && j < 0) draft.variante.retire.push(el.value); if (!el.checked && j >= 0) draft.variante.retire.splice(j, 1); renderSheet();
+    }
+  });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && draft) closeEditor(); });
+
+  // ---------- Accès restaurateur (démonstration) ----------
+  function unlock() { document.body.classList.remove("locked"); var g = document.getElementById("gate"); if (g) g.hidden = true; }
+  try { if (sessionStorage.getItem("cc-pro-ok") === "1") unlock(); } catch (e) {}
+  document.getElementById("gate-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (document.getElementById("gate-code").value.trim() === "1234") {
+      try { sessionStorage.setItem("cc-pro-ok", "1"); } catch (e2) {}
+      unlock(); render();
+    } else { document.getElementById("gate-err").hidden = false; }
+  });
+
+  save();
+  render();
+})();
+</script>
+
+</body>
+</html>
