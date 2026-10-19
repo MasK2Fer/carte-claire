@@ -46,6 +46,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="commun.js"></script>
+<script src="cout.js"></script>
 <script>
 (function () {
   "use strict";
@@ -53,23 +54,28 @@
   // ---------- Référentiels (partagés avec la carte client) ----------
   var ALLERGENES = CC.ALLERGENES, A = CC.A, UI = CC.UI;
 
-  // Base d'ingrédients courants : allergènes usuels et prix d'EXEMPLE (à remplacer par les vrais prix)
-  function ING(id, nom, unite, prix, al) { return { id: id, nom: nom, unite: unite, prix: prix, al: al || [] }; }
+  // Base d'ingrédients courants : allergènes usuels et prix d'EXEMPLE (à remplacer par les vrais prix).
+  // x : rendement (part utilisable après parage ou épluchage), poidsPiece (kg), densite (kg/L)
+  function ING(id, nom, unite, prix, al, x) {
+    var g = { id: id, nom: nom, unite: unite, prix: prix, al: al || [], rendement: 1 };
+    for (var k in x || {}) g[k] = x[k];
+    return g;
+  }
   var BASE = [
     ING("farine", "Farine de blé T55", "kg", 0.90, ["gluten"]),
     ING("pain", "Pain de campagne", "kg", 4.50, ["gluten"]),
     ING("pates", "Pâtes sèches (blé dur)", "kg", 2.20, ["gluten"]),
     ING("beurre", "Beurre doux", "kg", 9.50, ["lait"]),
-    ING("creme", "Crème liquide 35 %", "L", 5.20, ["lait"]),
-    ING("lait", "Lait entier", "L", 1.10, ["lait"]),
+    ING("creme", "Crème liquide 35 %", "L", 5.20, ["lait"], { densite: 1 }),
+    ING("lait", "Lait entier", "L", 1.10, ["lait"], { densite: 1.03 }),
     ING("parmesan", "Parmesan", "kg", 22.00, ["lait"]),
     ING("chevre", "Fromage de chèvre frais", "kg", 14.00, ["lait"]),
-    ING("oeuf", "Œuf", "pièce", 0.28, ["oeufs"]),
+    ING("oeuf", "Œuf", "pièce", 0.28, ["oeufs"], { poidsPiece: 0.05 }),
     ING("moutarde", "Moutarde de Dijon", "kg", 6.50, ["moutarde"]),
-    ING("huile_olive", "Huile d'olive", "L", 9.00, []),
-    ING("huile_tournesol", "Huile de tournesol", "L", 2.40, []),
-    ING("saumon", "Saumon frais", "kg", 24.00, ["poissons"]),
-    ING("cabillaud", "Cabillaud", "kg", 22.00, ["poissons"]),
+    ING("huile_olive", "Huile d'olive", "L", 9.00, [], { densite: 0.92 }),
+    ING("huile_tournesol", "Huile de tournesol", "L", 2.40, [], { densite: 0.92 }),
+    ING("saumon", "Saumon frais", "kg", 24.00, ["poissons"], { rendement: 0.9 }),
+    ING("cabillaud", "Cabillaud", "kg", 22.00, ["poissons"], { rendement: 0.9 }),
     ING("anchois", "Anchois", "kg", 30.00, ["poissons"]),
     ING("crevettes", "Crevettes", "kg", 18.00, ["crustaces"]),
     ING("moules", "Moules", "kg", 4.50, ["mollusques"]),
@@ -77,14 +83,14 @@
     ING("poulet", "Poulet fermier", "kg", 9.00, []),
     ING("boeuf", "Paleron de bœuf", "kg", 16.00, []),
     ING("agneau", "Épaule d'agneau", "kg", 18.00, []),
-    ING("celeri", "Céleri branche", "kg", 3.00, ["celeri"]),
-    ING("carotte", "Carottes", "kg", 1.20, []),
-    ING("oignon", "Oignons", "kg", 1.30, []),
-    ING("ail", "Ail", "kg", 6.00, []),
+    ING("celeri", "Céleri branche", "kg", 3.00, ["celeri"], { rendement: 0.8 }),
+    ING("carotte", "Carottes", "kg", 1.20, [], { rendement: 0.85 }),
+    ING("oignon", "Oignons", "kg", 1.30, [], { rendement: 0.9 }),
+    ING("ail", "Ail", "kg", 6.00, [], { rendement: 0.85 }),
     ING("tomate", "Tomates", "kg", 2.80, []),
-    ING("courgette", "Courgettes", "kg", 2.20, []),
-    ING("pdt", "Pommes de terre", "kg", 1.10, []),
-    ING("champignon", "Champignons de Paris", "kg", 4.50, []),
+    ING("courgette", "Courgettes", "kg", 2.20, [], { rendement: 0.95 }),
+    ING("pdt", "Pommes de terre", "kg", 1.10, [], { rendement: 0.8 }),
+    ING("champignon", "Champignons de Paris", "kg", 4.50, [], { rendement: 0.95 }),
     ING("salade", "Mesclun", "kg", 8.00, []),
     ING("noisettes", "Noisettes", "kg", 18.00, ["fruits_coque"]),
     ING("amandes", "Amandes en poudre", "kg", 14.00, ["fruits_coque"]),
@@ -96,14 +102,17 @@
     ING("miel", "Miel", "kg", 12.00, []),
     ING("sucre", "Sucre", "kg", 1.10, []),
     ING("chocolat", "Chocolat noir 70 %", "kg", 16.00, ["soja"]),
-    ING("basilic", "Basilic", "botte", 1.20, []),
-    ING("citron", "Citron", "pièce", 0.35, []),
+    ING("basilic", "Basilic", "botte", 1.20, [], { poidsPiece: 0.05, rendement: 0.6 }),
+    ING("citron", "Citron", "pièce", 0.35, [], { poidsPiece: 0.12 }),
     ING("sel_poivre", "Sel et poivre", "kg", 2.00, [])
   ];
 
+  // Quantités nettes par portion, dans l'unité de l'ingrédient (converties en g ou ml au chargement)
   function L(ing, q) { return { ing: ing, q: q }; }
+  function S(rec, q, u) { return { rec: rec, q: q, u: u }; }
+  var VIDE = { fr: "", en: "", de: "", it: "", retire: [] };
   function SAMPLE() {
-    return {
+    var s = {
       resto: "Le Bistrot d'exemple",
       cible: 25,
       lang: "fr",
@@ -118,27 +127,36 @@
           traces: ["poissons", "gluten"], tracesNote: "Frites cuites dans la friteuse commune (poisson pané)",
           variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok" },
         { id: "r3", nom: "Saumon, beurre blanc, légumes de saison", noms: { en: "Salmon, beurre blanc, seasonal vegetables", de: "Lachs, Beurre blanc, Saisongemüse", it: "Salmone, beurre blanc, verdure di stagione" }, prix: 22,
-          lignes: [L("saumon", 0.16), L("beurre", 0.03), L("vin_blanc", 0.03), L("courgette", 0.12), L("carotte", 0.08), L("citron", 0.5)],
+          lignes: [L("saumon", 0.16), S("p_beurre_blanc", 50, "g"), L("courgette", 0.12), L("carotte", 0.08), L("citron", 0.5)],
           traces: [], tracesNote: "",
           variante: { fr: "Sans beurre blanc, avec un filet d'huile d'olive", en: "Without beurre blanc, with a drizzle of olive oil", de: "Ohne Beurre blanc, mit etwas Olivenöl", it: "Senza beurre blanc, con un filo d'olio d'oliva", retire: ["lait", "sulfites"] }, statut: "ok" },
         { id: "r4", nom: "Tagliatelles au pesto maison", noms: { en: "Tagliatelle with homemade pesto", de: "Tagliatelle mit hausgemachtem Pesto", it: "Tagliatelle al pesto della casa" }, prix: 15,
-          lignes: [L("pates", 0.12), L("basilic", 0.5), L("parmesan", 0.03), L("huile_olive", 0.03), L("noisettes", 0.02), L("ail", 0.005)],
+          lignes: [L("pates", 0.12), S("p_pesto", 60, "g")],
           traces: [], tracesNote: "",
           variante: { fr: "Pesto sans noisettes", en: "Pesto without hazelnuts", de: "Pesto ohne Haselnüsse", it: "Pesto senza nocciole", retire: ["fruits_coque"] }, statut: "ok" },
         { id: "r5", nom: "Moelleux au chocolat", noms: { en: "Chocolate fondant", de: "Schokoladen-Fondant", it: "Tortino al cioccolato" }, prix: 8,
           lignes: [L("chocolat", 0.06), L("beurre", 0.04), L("oeuf", 1.5), L("sucre", 0.04), L("farine", 0.015)],
           traces: ["fruits_coque"], tracesNote: "Préparé à côté des desserts aux noisettes",
-          variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok" }
+          variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok" },
+        // Préparations de base (sous-recettes) : un lot, utilisé au poids dans les plats
+        { id: "p_beurre_blanc", nom: "Beurre blanc", sousRecette: true, production: { q: 0.4, u: "kg" }, prix: 0,
+          lignes: [L("beurre", 0.25), L("vin_blanc", 0.1), L("vinaigre", 0.05), L("oignon", 0.06)],
+          traces: [], tracesNote: "", variante: VIDE, statut: "ok" },
+        { id: "p_pesto", nom: "Pesto maison", sousRecette: true, production: { q: 0.3, u: "kg" }, prix: 0,
+          lignes: [L("basilic", 2), L("parmesan", 0.08), L("huile_olive", 0.12), L("noisettes", 0.06), L("ail", 0.015)],
+          traces: [], tracesNote: "", variante: VIDE, statut: "ok" }
       ],
       maj: new Date().toISOString().slice(0, 10)
     };
+    s.recettes.forEach(function (r) { if (!r.sousRecette) r.tva = 10; r.variante = JSON.parse(JSON.stringify(r.variante)); });
+    return CM.migrer(s);
   }
 
   // ---------- État ----------
   var KEY = "carte-claire-maquette-v1";
   var state;
   try { state = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { state = null; }
-  if (!state || !state.recettes) state = SAMPLE();
+  if (!state || !state.recettes) state = SAMPLE(); else CM.migrer(state);
   var tab = "recettes";
   try { var t0 = (location.hash || "").replace("#", ""); if (["recettes", "allergenes", "carte", "marges"].indexOf(t0) >= 0) tab = t0; } catch (e) {}
   var clientSel = []; // jamais enregistré : reste en mémoire seulement
@@ -156,12 +174,18 @@
   function smallUnit(u) { return u === "kg" ? "g" : u === "L" ? "ml" : u; }
   function uniq(a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }); }
   function order(codes) { return ALLERGENES.map(function (a) { return a.c; }).filter(function (c) { return codes.indexOf(c) >= 0; }); }
-  function contient(r) { var all = []; r.lignes.forEach(function (l) { var g = ing(l.ing); if (g) all = all.concat(g.al); }); return order(uniq(all)); }
-  function traces(r) { var c = contient(r); return order((r.traces || []).filter(function (x) { return c.indexOf(x) < 0; })); }
-  function cout(r) { return r.lignes.reduce(function (s, l) { var g = ing(l.ing); return s + (g ? g.prix * l.q : 0); }, 0); }
-  function ht(ttc) { return ttc / 1.10; } // TVA 10 % sur place
-  function ratio(r) { return r.prix > 0 ? cout(r) / ht(r.prix) : 0; }
-  function conseille(r) { var c = cout(r); var p = c / (state.cible / 100) * 1.10; return Math.ceil(p * 2) / 2; }
+  function rec(id) { for (var i = 0; i < state.recettes.length; i++) if (state.recettes[i].id === id) return state.recettes[i]; return null; }
+  // Plats de la carte, et préparations de base (sous-recettes) qui ne sont jamais montrées aux clients
+  function plats() { return state.recettes.filter(function (r) { return !r.sousRecette; }); }
+  function preps() { return state.recettes.filter(function (r) { return r.sousRecette; }); }
+  // Calculs dans cout.js (CM) : rendement des ingrédients, sous-recettes, TVA du plat, conversions d'unités
+  function contient(r) { return order(CM.allergenes(r, state).contient); }
+  function traces(r) { return order(CM.allergenes(r, state).traces); }
+  function cout(r) { return CM.cout(r, state); }
+  function ratio(r) { return CM.ratio(r, state); }
+  function conseille(r) { return CM.prixConseille(r, state, state.cible); }
+  function tvaTxt(t) { return String(t).replace(".", ",") + " %"; }
+  function unitOpts(units, sel) { return units.map(function (u) { return '<option value="' + esc(u) + '"' + (u === sel ? " selected" : "") + ">" + esc(u) + "</option>"; }).join(""); }
   function nomPlat(r, lang) { return (lang !== "fr" && r.noms && r.noms[lang]) ? r.noms[lang] : r.nom; }
   function aName(c, lang) { return A[c][lang] || A[c].fr; }
   function toast(msg) {
@@ -192,13 +216,13 @@
   }
 
   function vRecettes() {
-    var h = '<div class="row" style="justify-content:space-between"><h2>Fiches recettes</h2><span class="muted small">' + state.recettes.length + " plats</span></div>";
+    var h = '<div class="row" style="justify-content:space-between"><h2>Fiches recettes</h2><span class="muted small">' + plats().length + " plats</span></div>";
     h += '<div class="row"><button class="btn primary" data-act="new">+ Nouvelle recette</button>' +
          '<label class="btn" for="import-photo">Importer une photo de la carte</label>' +
          '<input id="import-photo" type="file" accept="image/*" hidden></div>';
     h += '<p class="small muted">L\'import photo est simulé dans cette maquette : il ajoute une recette pré-remplie à vérifier. La vraie version lira la carte.</p>';
     h += '<div class="list">';
-    state.recettes.forEach(function (r, idx) {
+    plats().forEach(function (r, idx) {
       var rr = ratio(r), over = rr > state.cible / 100;
       h += '<button class="card recipe" data-act="edit" data-id="' + esc(r.id) + '">' +
         '<div class="recipe-head"><h3>' + esc(r.nom) + '</h3><span class="price">' + eur(r.prix) + "</span></div>" +
@@ -206,6 +230,19 @@
         '<div class="meta"><span class="num">Fiche ' + String(idx + 1).padStart(2, "0") + '</span><span>Coût portion <span class="num">' + eur(cout(r)) + '</span></span><span class="pill ' + (over ? "bad" : "ok") + '">' + pct(rr) + "</span></div>" +
         "</button>";
     });
+    h += "</div>";
+    h += '<div class="row" style="justify-content:space-between"><h2>Préparations de base</h2><button class="btn" data-act="new-prep">+ Nouvelle préparation</button></div>';
+    h += '<p class="small muted">Fonds, sauces, pâtes : une recette faite en lot, utilisée ensuite au poids ou au volume dans les plats. Son coût et ses allergènes passent dans chaque plat qui l\'utilise. Les clients ne la voient pas.</p>';
+    h += '<div class="list">';
+    preps().forEach(function (r) {
+      var p = CM.production(r), n = CM.utilisations(r.id, state).length;
+      h += '<button class="card recipe" data-act="edit" data-id="' + esc(r.id) + '">' +
+        '<div class="recipe-head"><h3>' + esc(r.nom) + '</h3><span class="price">' + eur(CM.coutUnitaire(r, state)) + " / " + esc(p.u) + "</span></div>" +
+        '<div class="chips">' + chipsFor(r) + "</div>" +
+        '<div class="meta"><span>Lot de <span class="num">' + String(p.q).replace(".", ",") + " " + esc(p.u) + '</span> · coût <span class="num">' + eur(cout(r)) + "</span></span><span>" + (n ? "Utilisée dans " + n + (n > 1 ? " plats" : " plat") : "Pas encore utilisée") + "</span></div>" +
+        "</button>";
+    });
+    if (!preps().length) h += '<p class="small muted">Aucune préparation pour l\'instant.</p>';
     h += "</div>";
     return h;
   }
@@ -217,7 +254,7 @@
     h += '<div class="table-scroll"><table class="matrix"><thead><tr><th class="dish" scope="col">Plat</th>';
     ALLERGENES.forEach(function (a) { h += '<th scope="col" title="' + esc(a.long || a.fr) + '">' + esc(a.fr) + "</th>"; });
     h += "</tr></thead><tbody>";
-    state.recettes.forEach(function (r) {
+    plats().forEach(function (r) {
       var c = contient(r), t = traces(r);
       h += '<tr><th class="dish" scope="row">' + esc(r.nom) + "</th>";
       ALLERGENES.forEach(function (a) {
@@ -237,7 +274,7 @@
       resto: state.resto,
       lang: state.lang || "fr",
       maj: state.maj,
-      plats: state.recettes.map(function (r) {
+      plats: plats().map(function (r) {
         return { nom: r.nom, noms: r.noms || {}, prix: r.prix, contient: contient(r), traces: traces(r),
           variante: { fr: r.variante.fr || "", en: r.variante.en || "", de: r.variante.de || "", it: r.variante.it || "", retire: (r.variante.retire || []).slice() } };
       })
@@ -264,11 +301,11 @@
 
   function vMarges() {
     var cible = state.cible / 100;
-    var rs = state.recettes.slice().sort(function (a, b) { return ratio(b) - ratio(a); });
+    var rs = plats().sort(function (a, b) { return ratio(b) - ratio(a); });
     var over = rs.filter(function (r) { return ratio(r) > cible; });
     var moy = rs.length ? rs.reduce(function (s, r) { return s + ratio(r); }, 0) / rs.length : 0;
     var h = '<h2>Coût matière et marges</h2>';
-    h += '<div class="row"><label for="cible" class="small">Coût matière visé</label><input id="cible" class="target-input num" type="number" min="5" max="80" step="1" value="' + state.cible + '"><span class="small muted">% du prix hors taxes (TVA sur place 10 %)</span></div>';
+    h += '<div class="row"><label for="cible" class="small">Coût matière visé</label><input id="cible" class="target-input num" type="number" min="5" max="80" step="1" value="' + state.cible + '"><span class="small muted">% du prix hors taxes, avec la TVA de chaque plat</span></div>';
     h += '<p class="summary-line">' + rs.length + " plats · coût matière moyen <b>" + pct(moy) + "</b> · " + (over.length ? '<b style="color:var(--danger)">' + over.length + "</b> au-dessus de " + state.cible + " %" : "tous sous " + state.cible + " %") + "</p>";
     if (over.length) {
       h += '<div class="alert" role="alert"><b>' + over.length + (over.length > 1 ? " plats dépassent" : " plat dépasse") + " le coût matière visé</b>";
@@ -280,7 +317,7 @@
     h += '<div class="card"><p class="label">Plat par plat</p>';
     rs.forEach(function (r) {
       var rr = ratio(r), w = Math.min(rr / 0.6, 1) * 100, tg = Math.min(cible / 0.6, 1) * 100;
-      h += '<div class="bar-row"><span>' + esc(r.nom) + '</span><span class="num small">' + eur(cout(r)) + " · " + pct(rr) + '</span><div class="bar" aria-hidden="true"><i class="' + (rr > cible ? "over" : "") + '" style="width:' + w.toFixed(1) + '%"></i><span class="target" style="left:' + tg.toFixed(1) + '%"></span></div></div>';
+      h += '<div class="bar-row"><span>' + esc(r.nom) + '</span><span class="num small">' + eur(cout(r)) + " · " + pct(rr) + " · TVA " + tvaTxt(CM.tva(r)) + '</span><div class="bar" aria-hidden="true"><i class="' + (rr > cible ? "over" : "") + '" style="width:' + w.toFixed(1) + '%"></i><span class="target" style="left:' + tg.toFixed(1) + '%"></span></div></div>';
     });
     h += '<p class="small muted">Le trait noir marque le coût matière visé.</p></div>';
 
@@ -294,12 +331,13 @@
       });
       h += '<div class="row"><button class="btn primary" data-act="inv-apply">Appliquer les prix cochés</button><button class="btn" data-act="inv-cancel">Annuler</button></div></div>';
     }
-    var used = uniq([].concat.apply([], state.recettes.map(function (r) { return r.lignes.map(function (l) { return l.ing; }); })));
-    h += '<details><summary>Voir et modifier les ' + state.ingredients.filter(function (g) { return used.indexOf(g.id) >= 0; }).length + ' prix</summary><div style="overflow-x:auto"><table class="ing-table"><thead><tr><th>Ingrédient</th><th class="r">Prix</th><th>Unité</th></tr></thead><tbody>';
+    var used = uniq([].concat.apply([], state.recettes.map(function (r) { return r.lignes.filter(function (l) { return l.ing; }).map(function (l) { return l.ing; }); })));
+    h += '<details><summary>Voir et modifier les ' + state.ingredients.filter(function (g) { return used.indexOf(g.id) >= 0; }).length + ' prix et rendements</summary><div style="overflow-x:auto"><table class="ing-table"><thead><tr><th>Ingrédient</th><th class="r">Prix</th><th>Unité</th><th class="r">Rendement</th></tr></thead><tbody>';
     state.ingredients.filter(function (g) { return used.indexOf(g.id) >= 0; }).forEach(function (g) {
-      h += "<tr><td>" + esc(g.nom) + (g.src ? ' <span class="badge-src">(' + esc(g.src) + ")</span>" : "") + '</td><td class="r"><input class="price-input num" type="number" min="0" step="0.01" id="prix-' + esc(g.id) + '" data-act="prix" data-id="' + esc(g.id) + '" value="' + g.prix.toFixed(2) + '" aria-label="Prix de ' + esc(g.nom) + '"></td><td class="muted small">€ / ' + esc(g.unite) + "</td></tr>";
+      h += "<tr><td>" + esc(g.nom) + (g.src ? ' <span class="badge-src">(' + esc(g.src) + ")</span>" : "") + '</td><td class="r"><input class="price-input num" type="number" min="0" step="0.01" id="prix-' + esc(g.id) + '" data-act="prix" data-id="' + esc(g.id) + '" value="' + g.prix.toFixed(2) + '" aria-label="Prix de ' + esc(g.nom) + '"></td><td class="muted small">€ / ' + esc(g.unite) + '</td><td class="r"><input class="price-input num" type="number" min="1" max="100" step="1" id="rdt-' + esc(g.id) + '" data-act="rendement" data-id="' + esc(g.id) + '" value="' + Math.round(CM.rendement(g) * 100) + '" aria-label="Rendement de ' + esc(g.nom) + ' en %"> <span class="muted small">%</span></td></tr>';
     });
-    h += "</tbody></table></div></details><p class=\"small muted\">Prix d'exemple, à remplacer par les vrais prix fournisseurs. La photo de facture est simulée dans cette maquette.</p></div>";
+    h += "</tbody></table></div></details><p class=\"small muted\">Prix d'exemple, à remplacer par les vrais prix fournisseurs. La photo de facture est simulée dans cette maquette.</p>";
+    h += '<p class="small muted">Rendement : la part utilisable après épluchage, parage ou cuisson. Les quantités des recettes sont nettes, le coût tient compte de ce qui part à la poubelle (100 g de carottes à 85 % coûtent 118 g achetés).</p></div>';
 
     h += '<div class="card"><p class="label">Maquette</p>';
     if (!confirmReset) h += '<button class="btn danger" data-act="reset">Revenir aux données d\'exemple</button>';
@@ -310,35 +348,51 @@
 
   // ---------- Feuille d'édition ----------
   var draft = null, draftConfirmDelete = false;
-  function openEditor(id) {
+  function openEditor(id, prep) {
     document.getElementById("toast-root").innerHTML = "";
-    var r = id ? state.recettes.filter(function (x) { return x.id === id; })[0] : null;
-    draft = r ? JSON.parse(JSON.stringify(r)) : { id: "r" + Date.now(), nom: "", noms: {}, prix: 12, lignes: [], traces: [], tracesNote: "", variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok", _new: true };
+    var r = id ? rec(id) : null;
+    draft = r ? JSON.parse(JSON.stringify(r)) : { id: (prep ? "p" : "r") + Date.now(), nom: "", noms: {}, prix: prep ? 0 : 12, tva: 10, lignes: [], traces: [], tracesNote: "", variante: { fr: "", en: "", de: "", it: "", retire: [] }, statut: "ok", _new: true };
+    if (!r && prep) { draft.sousRecette = true; draft.production = { q: 1, u: "kg" }; delete draft.tva; }
     draftConfirmDelete = false;
     renderSheet();
   }
   function closeEditor() { draft = null; document.getElementById("sheet-root").innerHTML = ""; }
+  // Ligne de recette : ingrédient ou préparation de base, avec les unités possibles pour la saisir
+  function lineInfo(l) {
+    if (l.rec) { var s = rec(l.rec); return s ? { nom: s.nom, al: contient(s), src: "préparation", units: CM.unitesPour(CM.production(s).u) } : null; }
+    var g = ing(l.ing); return g ? { nom: g.nom, al: g.al, src: g.src, units: CM.unitesPour(g.unite, g) } : null;
+  }
   function renderSheet() {
     if (!draft) return;
-    var r = draft, c = contient(r), t = traces(r), rr = ratio(r), over = rr > state.cible / 100;
+    var r = draft, isPrep = !!r.sousRecette, c = contient(r), t = traces(r), rr = ratio(r), over = rr > state.cible / 100;
     var opts = state.ingredients.slice().sort(function (a, b) { return a.nom.localeCompare(b.nom, "fr"); });
+    var subs = preps().filter(function (p) { return !CM.creeBoucle(r.id, p.id, state); });
     var h = '<div class="sheet-bg" data-act="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title">';
-    h += '<div class="sheet-head"><h2 id="sheet-title">' + (r._new ? "Nouvelle recette" : "Fiche recette") + '</h2><button class="icon-btn" data-act="close" aria-label="Fermer">×</button></div>';
+    h += '<div class="sheet-head"><h2 id="sheet-title">' + (isPrep ? (r._new ? "Nouvelle préparation" : "Préparation de base") : (r._new ? "Nouvelle recette" : "Fiche recette")) + '</h2><button class="icon-btn" data-act="close" aria-label="Fermer">×</button></div>';
     if (r.statut === "a_verifier") h += '<div class="alert" style="background:var(--warn-soft);color:var(--warn)"><b>Pré-remplie depuis la photo : vérifie les ingrédients et les quantités.</b></div>';
-    h += '<div class="grid2"><div class="field"><label class="label" for="f-nom">Nom du plat</label><input id="f-nom" type="text" data-f="nom" value="' + esc(r.nom) + '" placeholder="Ex. Salade de chèvre chaud"></div>' +
-         '<div class="field"><label class="label" for="f-prix">Prix TTC (€)</label><input id="f-prix" type="number" min="0" step="0.5" data-f="prix" value="' + r.prix + '"></div></div>';
+    if (isPrep) {
+      var pr = CM.production(r);
+      h += '<div class="grid2"><div class="field"><label class="label" for="f-nom">Nom de la préparation</label><input id="f-nom" type="text" data-f="nom" value="' + esc(r.nom) + '" placeholder="Ex. Fond de veau"></div>' +
+           '<div class="field"><label class="label" for="f-prodq">Le lot donne</label><span class="row" style="flex-wrap:nowrap;gap:4px"><input id="f-prodq" type="number" min="0" step="any" data-f="prodq" value="' + pr.q + '"><select id="f-produ" data-f="produ" aria-label="Unité du lot" style="width:auto">' + unitOpts(["g", "kg", "ml", "cl", "L", "portion"], pr.u) + "</select></span></div></div>";
+    } else {
+      h += '<div class="grid2"><div class="field"><label class="label" for="f-nom">Nom du plat</label><input id="f-nom" type="text" data-f="nom" value="' + esc(r.nom) + '" placeholder="Ex. Salade de chèvre chaud"></div>' +
+           '<div class="field"><label class="label" for="f-prix">Prix TTC (€)</label><input id="f-prix" type="number" min="0" step="0.5" data-f="prix" value="' + r.prix + '"></div></div>';
+      h += '<div class="field"><label class="label" for="f-tva">TVA</label><select id="f-tva" data-f="tva">' +
+           CM.TVA.map(function (x) { return '<option value="' + x.taux + '"' + (x.taux === CM.tva(r) ? " selected" : "") + ">" + esc(x.nom) + "</option>"; }).join("") + "</select></div>";
+    }
 
-    h += '<div class="field"><span class="label">Ingrédients par portion</span>';
+    h += '<div class="field"><span class="label">' + (isPrep ? "Ingrédients pour tout le lot" : "Ingrédients par portion") + ' <span class="muted small" style="text-transform:none;letter-spacing:0">· quantités nettes</span></span>';
     r.lignes.forEach(function (l, i) {
-      var g = ing(l.ing); if (!g) return;
-      var shown = bigUnit(g.unite) ? Math.round(l.q * 1000 * 10) / 10 : l.q;
-      h += '<div class="line-row"><span>' + esc(g.nom) + (g.al.length ? ' <span class="small" style="color:var(--danger)">· ' + esc(g.al.map(function (x) { return A[x].fr; }).join(", ")) + "</span>" : "") + (g.src ? ' <span class="badge-src">(' + esc(g.src) + ")</span>" : "") + "</span>" +
-           '<span class="row" style="flex-wrap:nowrap;gap:4px"><input type="number" min="0" step="any" id="q-' + i + '" data-act="q" data-i="' + i + '" value="' + shown + '" aria-label="Quantité de ' + esc(g.nom) + '"><span class="unit">' + esc(smallUnit(g.unite)) + "</span></span>" +
-           '<button class="icon-btn" data-act="del-line" data-i="' + i + '" aria-label="Retirer ' + esc(g.nom) + '">−</button></div>';
+      var x = lineInfo(l); if (!x) return;
+      h += '<div class="line-row"><span>' + esc(x.nom) + (x.al.length ? ' <span class="small" style="color:var(--danger)">· ' + esc(x.al.map(function (a) { return A[a].fr; }).join(", ")) + "</span>" : "") + (x.src ? ' <span class="badge-src">(' + esc(x.src) + ")</span>" : "") + ' <span class="small muted num">· ' + eur(CM.coutLigne(l, state, [r.id])) + "</span></span>" +
+           '<span class="row" style="flex-wrap:nowrap;gap:4px"><input type="number" min="0" step="any" id="q-' + i + '" data-act="q" data-i="' + i + '" value="' + l.q + '" aria-label="Quantité de ' + esc(x.nom) + '"><select class="unit-select" id="u-' + i + '" data-act="u" data-i="' + i + '" aria-label="Unité pour ' + esc(x.nom) + '">' + unitOpts(x.units, l.u) + "</select></span>" +
+           '<button class="icon-btn" data-act="del-line" data-i="' + i + '" aria-label="Retirer ' + esc(x.nom) + '">−</button></div>';
     });
     h += '<div class="row"><select id="add-ing" aria-label="Ajouter un ingrédient"><option value="">+ Ajouter un ingrédient…</option>';
+    if (subs.length) { h += '<optgroup label="Préparations de base">'; subs.forEach(function (p) { h += '<option value="rec:' + esc(p.id) + '">' + esc(p.nom) + "</option>"; }); h += "</optgroup>"; }
+    h += '<optgroup label="Ingrédients">';
     opts.forEach(function (g) { h += '<option value="' + esc(g.id) + '">' + esc(g.nom) + "</option>"; });
-    h += '</select><button class="btn" data-act="scan">Scanner un code-barres</button></div>';
+    h += '</optgroup></select><button class="btn" data-act="scan">Scanner un code-barres</button></div>';
     h += '<p class="small muted">Le scan est simulé : il ajoute un produit d\'exemple dont les allergènes viendraient d\'Open Food Facts, à confirmer.</p></div>';
 
     h += '<div class="field"><span class="label">Risques de contamination croisée</span><div class="check-grid">';
@@ -348,15 +402,18 @@
     });
     h += '</div><input type="text" id="f-tracesNote" data-f="tracesNote" value="' + esc(r.tracesNote || "") + '" placeholder="Pourquoi ? Ex. friteuse commune, même plan de travail"></div>';
 
-    h += '<div class="field"><span class="label">Variante possible sur demande</span><input type="text" id="f-variante" data-f="variante" value="' + esc(r.variante.fr || "") + '" placeholder="Ex. sans sauce"><div class="check-grid">';
-    c.forEach(function (x) { h += '<label class="toggle"><input type="checkbox" id="vr-' + x + '" data-act="vretire" value="' + x + '"' + (r.variante.retire.indexOf(x) >= 0 ? " checked" : "") + "><span>Retire : " + esc(A[x].fr) + "</span></label>"; });
-    if (!c.length) h += '<span class="small muted">Aucun allergène à retirer.</span>';
-    h += "</div></div>";
+    if (!isPrep) {
+      h += '<div class="field"><span class="label">Variante possible sur demande</span><input type="text" id="f-variante" data-f="variante" value="' + esc(r.variante.fr || "") + '" placeholder="Ex. sans sauce"><div class="check-grid">';
+      c.forEach(function (x) { h += '<label class="toggle"><input type="checkbox" id="vr-' + x + '" data-act="vretire" value="' + x + '"' + (r.variante.retire.indexOf(x) >= 0 ? " checked" : "") + "><span>Retire : " + esc(A[x].fr) + "</span></label>"; });
+      if (!c.length) h += '<span class="small muted">Aucun allergène à retirer.</span>';
+      h += "</div></div>";
+    }
 
     h += '<div class="live"><p class="label">Résultat</p><div class="chips">' + (c.length || t.length ? "" : '<span class="chip none">Aucun allergène à déclarer</span>');
     c.forEach(function (x) { h += '<span class="chip">' + esc(A[x].fr) + "</span>"; });
     t.forEach(function (x) { h += '<span class="chip trace">Traces : ' + esc(A[x].fr) + "</span>"; });
-    h += '</div><div class="meta"><span>Coût matière <span class="num">' + eur(cout(r)) + '</span></span><span class="pill ' + (over ? "bad" : "ok") + '">' + pct(rr) + '</span><span>Prix minimum pour tenir ' + state.cible + ' % : <span class="num">' + eur(conseille(r)) + "</span></span></div></div>";
+    if (isPrep) h += '</div><div class="meta"><span>Coût du lot <span class="num">' + eur(cout(r)) + '</span></span><span>soit <span class="num">' + eur(CM.coutUnitaire(r, state)) + "</span> / " + esc(CM.production(r).u) + "</span></div></div>";
+    else h += '</div><div class="meta"><span>Coût matière <span class="num">' + eur(cout(r)) + '</span></span><span class="pill ' + (over ? "bad" : "ok") + '">' + pct(rr) + '</span><span>Prix minimum pour tenir ' + state.cible + " % (TVA " + tvaTxt(CM.tva(r)) + ') : <span class="num">' + eur(conseille(r)) + "</span></span></div></div>";
 
     h += '<div class="row" style="justify-content:space-between"><button class="btn primary" data-act="save"' + (r.nom.trim() && r.lignes.length ? "" : " disabled") + ">Enregistrer la fiche</button>";
     if (!r._new) h += draftConfirmDelete ? '<span class="row"><button class="btn danger" data-act="del-yes">Oui, supprimer</button><button class="btn" data-act="del-no">Annuler</button></span>' : '<button class="btn danger" data-act="del">Supprimer</button>';
@@ -379,6 +436,7 @@
     var b = e.target.closest("[data-act]"); if (!b) return;
     var act = b.dataset.act;
     if (act === "new") openEditor(null);
+    if (act === "new-prep") openEditor(null, true);
     if (act === "edit") openEditor(b.dataset.id);
     if (act === "lang") { state.lang = b.dataset.lang; save(); render(); }
     if (act === "inv-apply") {
@@ -401,12 +459,13 @@
     }
     if (el.dataset.act === "inv") { pendingInvoice[+el.dataset.i].ok = el.checked; }
     if (el.dataset.act === "prix") { var g = ing(el.dataset.id), p = parseFloat(el.value); if (g && p >= 0) { g.prix = p; touch(); render(); } }
+    if (el.dataset.act === "rendement") { var g3 = ing(el.dataset.id), rd = parseFloat(el.value); if (g3 && rd > 0 && rd <= 100) { g3.rendement = rd / 100; touch(); render(); } }
     if (el.id === "cible") { var c = parseFloat(el.value); if (c > 0 && c < 100) { state.cible = c; save(); render(); } }
     if (el.id === "import-photo" && el.files && el.files.length) {
       var r = { id: "r" + Date.now(), nom: "Salade de chèvre chaud, miel et noisettes", noms: {}, prix: 14,
         lignes: [L("salade", 0.08), L("chevre", 0.08), L("pain", 0.04), L("miel", 0.01), L("noisettes", 0.015), L("huile_olive", 0.015), L("vinaigre", 0.005), L("moutarde", 0.003)],
         traces: [], tracesNote: "", variante: { fr: "Sans noisettes", en: "", de: "", it: "", retire: ["fruits_coque"] }, statut: "a_verifier" };
-      state.recettes.unshift(r); touch(); render(); openEditor(r.id); toast("Recette pré-remplie : à vérifier");
+      r.tva = 10; state.recettes.unshift(r); CM.migrer(state); touch(); render(); openEditor(r.id); toast("Recette pré-remplie : à vérifier");
     }
     if (el.id === "invoice-photo" && el.files && el.files.length) {
       pendingInvoice = [{ id: "saumon", prix: 32.00, ok: true }, { id: "beurre", prix: 12.80, ok: true }, { id: "creme", prix: 5.40, ok: true }];
@@ -424,7 +483,7 @@
     if (act === "del-line") { draft.lignes.splice(+b.dataset.i, 1); renderSheet(); }
     if (act === "scan") {
       if (!ing("pesto_bocal")) state.ingredients.push({ id: "pesto_bocal", nom: "Sauce pesto en bocal (exemple scanné)", unite: "kg", prix: 18.00, al: ["lait", "fruits_coque"], src: "Open Food Facts · à confirmer" });
-      draft.lignes.push(L("pesto_bocal", 0.03)); save(); renderSheet(); toast("Produit scanné ajouté : allergènes à confirmer");
+      draft.lignes.push({ ing: "pesto_bocal", q: 30, u: "g" }); save(); renderSheet(); toast("Produit scanné ajouté : allergènes à confirmer");
     }
     if (act === "save") {
       var clean = JSON.parse(JSON.stringify(draft)); delete clean._new; if (clean.statut === "a_verifier") clean.statut = "ok";
@@ -437,10 +496,18 @@
         if (avant.nom !== clean.nom) clean.noms = {};
         if ((avant.variante.fr || "") !== (clean.variante.fr || "")) { clean.variante.en = ""; clean.variante.de = ""; clean.variante.it = ""; }
       }
-      if (i >= 0) state.recettes[i] = clean; else state.recettes.unshift(clean);
+      if (i >= 0) state.recettes[i] = clean; else if (clean.sousRecette) state.recettes.push(clean); else state.recettes.unshift(clean);
+      // Unité du lot changée de famille (kg → L…) : les plats qui l'utilisent repassent dans la nouvelle unité
+      if (clean.sousRecette) CM.utilisations(clean.id, state).forEach(function (x) {
+        x.lignes.forEach(function (l) { if (l.rec === clean.id && isNaN(CM.convertir(1, l.u, CM.production(clean).u))) l.u = CM.production(clean).u; });
+      });
       touch(); closeEditor(); render(); toast("Fiche enregistrée");
     }
-    if (act === "del") { draftConfirmDelete = true; renderSheet(); }
+    if (act === "del") {
+      var us = CM.utilisations(draft.id, state).filter(function (x) { return x.id !== draft.id; });
+      if (us.length) { toast("Utilisée dans : " + us.map(function (x) { return x.nom; }).join(", ") + ". Retire-la de ces plats d'abord."); return; }
+      draftConfirmDelete = true; renderSheet();
+    }
     if (act === "del-no") { draftConfirmDelete = false; renderSheet(); }
     if (act === "del-yes") { state.recettes = state.recettes.filter(function (x) { return x.id !== draft.id; }); touch(); closeEditor(); render(); toast("Recette supprimée"); }
   });
@@ -455,13 +522,25 @@
     if (!draft) return;
     var el = e.target;
     if (el.dataset.f === "prix") { draft.prix = Math.max(0, parseFloat(el.value) || 0); renderSheet(); }
-    if (el.dataset.act === "q") {
-      var l = draft.lignes[+el.dataset.i], g = ing(l.ing), v = Math.max(0, parseFloat(el.value) || 0);
-      l.q = bigUnit(g.unite) ? v / 1000 : v; renderSheet();
+    if (el.dataset.f === "tva") { draft.tva = parseFloat(el.value); renderSheet(); }
+    if (el.dataset.f === "prodq") { var pq = parseFloat(el.value); if (pq > 0) draft.production.q = pq; renderSheet(); }
+    if (el.dataset.f === "produ") { draft.production.u = el.value; renderSheet(); }
+    if (el.dataset.act === "q") { draft.lignes[+el.dataset.i].q = Math.max(0, parseFloat(el.value) || 0); renderSheet(); }
+    if (el.dataset.act === "u") {
+      // Changer d'unité garde la même quantité réelle : 0,05 kg devient 50 g
+      var lu = draft.lignes[+el.dataset.i], gu = lu.ing ? ing(lu.ing) : null, nq = CM.convertir(lu.q, lu.u, el.value, gu);
+      if (!isNaN(nq)) lu.q = Math.round(nq * 1000) / 1000;
+      lu.u = el.value; renderSheet();
     }
     if (el.id === "add-ing" && el.value) {
-      var g2 = ing(el.value);
-      draft.lignes.push(L(el.value, bigUnit(g2.unite) ? 0.05 : 1)); renderSheet();
+      if (el.value.indexOf("rec:") === 0) {
+        var pu = CM.production(rec(el.value.slice(4))).u;
+        draft.lignes.push(S(el.value.slice(4), bigUnit(pu) ? 50 : 1, smallUnit(pu)));
+      } else {
+        var g2 = ing(el.value);
+        draft.lignes.push({ ing: el.value, q: bigUnit(g2.unite) ? 50 : 1, u: smallUnit(g2.unite) });
+      }
+      renderSheet();
       var last = document.getElementById("q-" + (draft.lignes.length - 1)); if (last) last.focus();
     }
     if (el.dataset.act === "trace") {
