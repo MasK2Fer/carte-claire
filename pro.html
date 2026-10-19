@@ -39,6 +39,7 @@
   <button class="tab" role="tab" id="tab-allergenes" data-tab="allergenes" aria-selected="false">Allergènes</button>
   <button class="tab" role="tab" id="tab-carte" data-tab="carte" aria-selected="false">Carte client</button>
   <button class="tab" role="tab" id="tab-marges" data-tab="marges" aria-selected="false">Marges</button>
+  <button class="tab" role="tab" id="tab-fournisseurs" data-tab="fournisseurs" aria-selected="false">Fournisseurs</button>
 </nav>
 
 <div id="sheet-root"></div>
@@ -47,6 +48,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="commun.js"></script>
 <script src="cout.js"></script>
+<script src="fournisseurs.js"></script>
 <script>
 (function () {
   "use strict";
@@ -149,7 +151,10 @@
       maj: new Date().toISOString().slice(0, 10)
     };
     s.recettes.forEach(function (r) { if (!r.sousRecette) r.tva = 10; r.variante = JSON.parse(JSON.stringify(r.variante)); });
-    return CM.migrer(s);
+    // Fournisseurs d'exemple retenus : les prix des ingrédients viennent de leurs catalogues (prix fictifs)
+    s.fournisseurs = ["metro", "promocash", "primeur"]; s.catalogue = []; s.fournisseursPerso = [];
+    CM.migrer(s); FO.appliquer(s);
+    return s;
   }
 
   // ---------- État ----------
@@ -157,11 +162,16 @@
   var state;
   try { state = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { state = null; }
   if (!state || !state.recettes) state = SAMPLE(); else CM.migrer(state);
+  // Données enregistrées avant les fournisseurs : aucun retenu, les prix existants ne bougent pas
+  if (!state.fournisseurs) state.fournisseurs = [];
+  if (!state.catalogue) state.catalogue = [];
+  if (!state.fournisseursPerso) state.fournisseursPerso = [];
   var tab = "recettes";
-  try { var t0 = (location.hash || "").replace("#", ""); if (["recettes", "allergenes", "carte", "marges"].indexOf(t0) >= 0) tab = t0; } catch (e) {}
+  try { var t0 = (location.hash || "").replace("#", ""); if (["recettes", "allergenes", "carte", "marges", "fournisseurs"].indexOf(t0) >= 0) tab = t0; } catch (e) {}
   var clientSel = []; // jamais enregistré : reste en mémoire seulement
   var pendingInvoice = null;
   var confirmReset = false;
+  var pendingImport = null; // mercuriale lue, en attente de confirmation
 
   function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} CC.ecrireCarte(snapshot()); }
 
@@ -205,6 +215,7 @@
     if (tab === "allergenes") v.innerHTML = vAllergenes();
     if (tab === "carte") { v.innerHTML = vCarte(); drawQR(); }
     if (tab === "marges") v.innerHTML = vMarges();
+    if (tab === "fournisseurs") v.innerHTML = vFournisseurs();
   }
 
   function chipsFor(r) {
@@ -336,13 +347,85 @@
     state.ingredients.filter(function (g) { return used.indexOf(g.id) >= 0; }).forEach(function (g) {
       h += "<tr><td>" + esc(g.nom) + (g.src ? ' <span class="badge-src">(' + esc(g.src) + ")</span>" : "") + '</td><td class="r"><input class="price-input num" type="number" min="0" step="0.01" id="prix-' + esc(g.id) + '" data-act="prix" data-id="' + esc(g.id) + '" value="' + g.prix.toFixed(2) + '" aria-label="Prix de ' + esc(g.nom) + '"></td><td class="muted small">€ / ' + esc(g.unite) + '</td><td class="r"><input class="price-input num" type="number" min="1" max="100" step="1" id="rdt-' + esc(g.id) + '" data-act="rendement" data-id="' + esc(g.id) + '" value="' + Math.round(CM.rendement(g) * 100) + '" aria-label="Rendement de ' + esc(g.nom) + ' en %"> <span class="muted small">%</span></td></tr>';
     });
-    h += "</tbody></table></div></details><p class=\"small muted\">Prix d'exemple, à remplacer par les vrais prix fournisseurs. La photo de facture est simulée dans cette maquette.</p>";
+    h += "</tbody></table></div></details><p class=\"small muted\">Les prix viennent des fournisseurs choisis dans l'onglet Fournisseurs ; un prix modifié ici est gardé tel quel. La photo de facture est simulée dans cette maquette.</p>";
     h += '<p class="small muted">Rendement : la part utilisable après épluchage, parage ou cuisson. Les quantités des recettes sont nettes, le coût tient compte de ce qui part à la poubelle (100 g de carottes à 85 % coûtent 118 g achetés).</p></div>';
 
     h += '<div class="card"><p class="label">Maquette</p>';
     if (!confirmReset) h += '<button class="btn danger" data-act="reset">Revenir aux données d\'exemple</button>';
     else h += '<div class="confirm"><b>Effacer tes saisies et revenir à l\'exemple ?</b><div class="row"><button class="btn danger" data-act="reset-yes">Oui, effacer</button><button class="btn" data-act="reset-no">Garder mes saisies</button></div></div>';
     h += "</div>";
+    return h;
+  }
+
+  // Fournisseurs : le restaurateur choisit où il achète, le prix de chaque ingrédient vient de l'offre retenue (fournisseurs.js)
+  function vFournisseurs() {
+    var cat = FO.catalogue(state), tous = FO.tous(state);
+    var h = '<h2>Fournisseurs et prix d\'achat</h2><p class="small muted">Choisis où tu achètes. Chaque ingrédient prend le prix de l\'offre retenue chez tes fournisseurs, et le coût matière de tes plats suit tout seul.</p>';
+
+    h += '<div class="card"><p class="label">Mes fournisseurs</p><div class="fo-list">';
+    tous.forEach(function (f) {
+      var n = cat.filter(function (p) { return p.f === f.id; }).length, on = state.fournisseurs.indexOf(f.id) >= 0;
+      h += '<label class="fo-item" for="fo-' + esc(f.id) + '"><input type="checkbox" id="fo-' + esc(f.id) + '" data-act="fo-f" value="' + esc(f.id) + '"' + (on ? " checked" : "") + '><span class="fo-box"><b>' + esc(f.nom) + '</b><span class="small muted">' + esc(f.type) + " · " + n + " produit" + (n > 1 ? "s" : "") + "</span></span></label>";
+    });
+    h += '</div><div class="row"><input id="fo-perso-nom" type="text" placeholder="Autre fournisseur (boucher, fromager...)" aria-label="Nom d\'un autre fournisseur" style="flex:1;min-width:0"><button class="btn" data-act="fo-perso">Ajouter</button></div></div>';
+
+    if (!state.fournisseurs.length) {
+      h += '<div class="alert"><b>Aucun fournisseur choisi</b><span class="small">Coche au moins un fournisseur pour que les prix de tes ingrédients viennent de son catalogue.</span></div>';
+    } else {
+      var cmp = FO.comparer(state);
+      h += '<div class="card"><p class="label">Ta carte chez chacun</p><div style="overflow-x:auto"><table class="ing-table"><thead><tr><th>Fournisseur</th><th class="r">Ingrédients</th><th class="r">Coût de la carte</th></tr></thead><tbody>';
+      cmp.forEach(function (c, i) {
+        h += "<tr" + (i === 0 && cmp.length > 1 ? ' class="fo-best"' : "") + "><td>" + esc(c.fournisseur.nom) + (i === 0 && cmp.length > 1 ? ' <span class="pill ok">le moins cher</span>' : "") + '</td><td class="r num">' + c.proposes + " / " + c.total + '</td><td class="r num">' + eur(c.coutCarte) + "</td></tr>";
+      });
+      h += '</tbody></table></div><p class="small muted">Une portion de chaque plat, en achetant chez ce fournisseur tout ce qu\'il propose et le reste au prix actuel (<span class="num">' + eur(cmp[0].actuel) + "</span> aujourd'hui).</p></div>";
+
+      var eco = FO.economies(state);
+      if (eco.length) {
+        h += '<div class="alert okay"><b>' + eco.length + (eco.length > 1 ? " ingrédients coûtent" : " ingrédient coûte") + " moins cher chez un autre de tes fournisseurs</b>";
+        eco.slice(0, 5).forEach(function (x) {
+          var f = FO.fournisseur(state, x.offre.produit.f);
+          h += '<span class="small">' + esc(x.ing.nom) + " : " + eur(x.offre.prix) + " / " + esc(x.ing.unite) + " chez " + esc(f ? f.nom : x.offre.produit.f) + " au lieu de " + eur(x.ing.prix) + " (−" + pct(x.part) + ")</span>";
+        });
+        h += '<div class="row"><button class="btn primary" data-act="fo-moins-cher">Tout prendre au moins cher</button></div></div>';
+      }
+
+      h += '<div class="card"><p class="label">Prix de chaque ingrédient</p><div style="overflow-x:auto"><table class="ing-table"><thead><tr><th>Ingrédient</th><th>Offre retenue</th><th class="r">Prix HT</th></tr></thead><tbody>';
+      FO.utilises(state).sort(function (a, b) { return a.nom.localeCompare(b.nom, "fr"); }).forEach(function (g) {
+        var os = FO.offres(state, g.id), o = g.prixManuel ? null : FO.offreRetenue(state, g);
+        var cell;
+        if (!os.length) cell = '<span class="small muted">Chez aucun de tes fournisseurs' + (g.src === "facture" ? " · prix de la facture" : "") + "</span>";
+        else {
+          cell = '<select data-act="fo-offre" data-id="' + esc(g.id) + '" aria-label="Offre pour ' + esc(g.nom) + '">';
+          os.forEach(function (x, i) {
+            var f = FO.fournisseur(state, x.produit.f);
+            cell += '<option value="' + esc(x.produit.id) + '"' + (o && o.produit.id === x.produit.id ? " selected" : "") + ">" + esc((f ? f.nom : x.produit.f) + " · " + eur(x.prix) + " / " + g.unite + (i === 0 && os.length > 1 ? " (le moins cher)" : "") + " · " + x.produit.nom) + "</option>";
+          });
+          cell += '<option value="manuel"' + (g.prixManuel ? " selected" : "") + ">Prix saisi à la main</option></select>";
+        }
+        h += "<tr><td>" + esc(g.nom) + '</td><td class="fo-cell">' + cell + '</td><td class="r num nowrap">' + eur(g.prix) + '<span class="small muted"> / ' + esc(g.unite) + "</span></td></tr>";
+      });
+      h += "</tbody></table></div></div>";
+    }
+
+    h += '<div class="card"><p class="label">Importer les vrais prix</p><p class="small">Demande à ton fournisseur ta mercuriale ou ton historique d\'achats en tableur (CSV). Colonnes : référence ; libellé ; quantité du colis ; unité ; prix HT du colis.</p>';
+    if (pendingImport) {
+      var pf = FO.fournisseur(state, pendingImport.f), ok = pendingImport.produits.filter(function (x) { return x.ing; }).length;
+      h += '<div class="confirm"><b>' + pendingImport.produits.length + " lignes lues pour " + esc(pf ? pf.nom : pendingImport.f) + " : vérifie à quel ingrédient correspond chaque produit</b>";
+      var opts = state.ingredients.slice().sort(function (a, b) { return a.nom.localeCompare(b.nom, "fr"); });
+      pendingImport.produits.forEach(function (x, i) {
+        h += '<div class="fo-imp"><span>' + esc(x.nom) + ' <span class="small muted num">' + eur(x.prixHT) + " · " + String(x.cond.q).replace(".", ",") + " " + esc(x.cond.u) + "</span>" + (x.ing && !x.sur ? ' <span class="badge-src">à vérifier</span>' : "") + '</span><select data-act="fo-ing" data-i="' + i + '" aria-label="Ingrédient pour ' + esc(x.nom) + '"><option value="">Ne pas importer</option>' +
+          opts.map(function (g) { return '<option value="' + esc(g.id) + '"' + (g.id === x.ing ? " selected" : "") + ">" + esc(g.nom) + "</option>"; }).join("") + "</select></div>";
+      });
+      if (pendingImport.erreurs.length) h += '<p class="small" style="color:var(--danger)">Lignes ignorées (colonnes manquantes ou prix illisible) : ' + pendingImport.erreurs.map(function (x) { return x.ligne; }).join(", ") + "</p>";
+      h += '<div class="row"><button class="btn primary" data-act="fo-import-ok"' + (ok ? "" : " disabled") + ">Importer " + ok + " produit" + (ok > 1 ? "s" : "") + '</button><button class="btn" data-act="fo-import-annuler">Annuler</button></div></div>';
+    } else {
+      h += '<div class="row"><select id="fo-import-f" aria-label="Fournisseur de la mercuriale">' + tous.map(function (f) { return '<option value="' + esc(f.id) + '">' + esc(f.nom) + "</option>"; }).join("") + '</select><label class="btn" for="fo-fichier">Choisir un fichier CSV</label><input id="fo-fichier" type="file" accept=".csv,.txt,text/csv" hidden></div>' +
+        '<textarea id="fo-csv" rows="4" aria-label="Contenu de la mercuriale" placeholder="Référence;Libellé;Quantité;Unité;Prix HT&#10;123;Beurre doux plaque;1;kg;9,10&#10;456;Œufs plein air plateau;30;pièce;8,40"></textarea>' +
+        '<div class="row"><button class="btn primary" data-act="fo-lire">Lire les prix</button></div>';
+    }
+    h += "</div>";
+
+    h += '<details class="card"><summary>D\'où viennent les prix ?</summary><p class="small">Les catalogues Metro, Promocash, Transgourmet, EpiSaveurs et du primeur sont des <b>exemples aux prix fictifs</b>. Ces grossistes ne publient pas leurs prix professionnels en libre accès : ils dépendent de ta carte client et de tes conditions. Les vrais prix arrivent par ta mercuriale ou ton historique d\'achats (import ci-dessus), et plus tard par la lecture de tes factures ou un accord avec chaque fournisseur.</p></details>';
     return h;
   }
 
@@ -441,13 +524,39 @@
     if (act === "lang") { state.lang = b.dataset.lang; save(); render(); }
     if (act === "inv-apply") {
       var n = 0;
-      pendingInvoice.forEach(function (p) { if (p.ok) { ing(p.id).prix = p.prix; n++; } });
+      pendingInvoice.forEach(function (p) { if (p.ok) { var gi = ing(p.id); gi.prix = p.prix; gi.prixManuel = true; gi.src = "facture"; n++; } });
       pendingInvoice = null; touch(); render(); toast(n + " prix mis à jour");
     }
     if (act === "inv-cancel") { pendingInvoice = null; render(); }
     if (act === "reset") { confirmReset = true; render(); }
     if (act === "reset-no") { confirmReset = false; render(); }
-    if (act === "reset-yes") { state = SAMPLE(); confirmReset = false; pendingInvoice = null; save(); render(); toast("Données d'exemple rétablies"); }
+    if (act === "reset-yes") { state = SAMPLE(); confirmReset = false; pendingInvoice = null; pendingImport = null; save(); render(); toast("Données d'exemple rétablies"); }
+    if (act === "fo-moins-cher") {
+      FO.economies(state).forEach(function (x) { x.ing.offre = x.offre.produit.id; });
+      var nm = FO.appliquer(state); touch(); render(); toast(nm + " prix mis à jour");
+    }
+    if (act === "fo-perso") {
+      var inp = document.getElementById("fo-perso-nom"), nomF = inp.value.trim();
+      if (nomF) {
+        var idF = "perso-" + Date.now();
+        state.fournisseursPerso.push({ id: idF, nom: nomF, type: "Ajouté par toi" });
+        state.fournisseurs.push(idF); touch(); render(); toast(nomF + " ajouté");
+      }
+    }
+    if (act === "fo-lire") {
+      var txt = document.getElementById("fo-csv").value, fid = document.getElementById("fo-import-f").value;
+      pendingImport = FO.importer(txt, fid, state.ingredients); pendingImport.f = fid; render();
+    }
+    if (act === "fo-import-ok") {
+      var ps = pendingImport.produits.filter(function (x) { return x.ing; });
+      state.catalogue = FO.fusionner(state.catalogue, ps);
+      // Un prix réel importé passe avant l'offre retenue jusque-là
+      ps.forEach(function (x) { var gx = ing(x.ing); if (gx) { gx.offre = x.id; delete gx.prixManuel; } });
+      if (state.fournisseurs.indexOf(pendingImport.f) < 0) state.fournisseurs.push(pendingImport.f);
+      var ni = FO.appliquer(state); pendingImport = null; touch(); render();
+      toast(ps.length + " produits importés · " + ni + " prix mis à jour");
+    }
+    if (act === "fo-import-annuler") { pendingImport = null; render(); }
   });
 
   document.getElementById("view").addEventListener("change", function (e) {
@@ -458,7 +567,24 @@
       render(); var again = document.getElementById(el.id); if (again) again.focus();
     }
     if (el.dataset.act === "inv") { pendingInvoice[+el.dataset.i].ok = el.checked; }
-    if (el.dataset.act === "prix") { var g = ing(el.dataset.id), p = parseFloat(el.value); if (g && p >= 0) { g.prix = p; touch(); render(); } }
+    if (el.dataset.act === "prix") { var g = ing(el.dataset.id), p = parseFloat(el.value); if (g && p >= 0) { g.prix = p; g.prixManuel = true; delete g.src; touch(); render(); } }
+    if (el.dataset.act === "fo-f") {
+      var fl = state.fournisseurs, fi = fl.indexOf(el.value);
+      if (el.checked && fi < 0) fl.push(el.value); if (!el.checked && fi >= 0) fl.splice(fi, 1);
+      var nf = FO.appliquer(state); touch(); render(); if (nf) toast(nf + " prix mis à jour");
+    }
+    if (el.dataset.act === "fo-offre") {
+      var go = ing(el.dataset.id);
+      if (el.value === "manuel") { go.prixManuel = true; delete go.src; }
+      else { delete go.prixManuel; go.offre = el.value; }
+      FO.appliquer(state); touch(); render();
+    }
+    if (el.dataset.act === "fo-ing") { pendingImport.produits[+el.dataset.i].ing = el.value || null; render(); }
+    if (el.id === "fo-fichier" && el.files && el.files[0]) {
+      var fr = new FileReader();
+      fr.onload = function () { document.getElementById("fo-csv").value = fr.result; };
+      fr.readAsText(el.files[0]);
+    }
     if (el.dataset.act === "rendement") { var g3 = ing(el.dataset.id), rd = parseFloat(el.value); if (g3 && rd > 0 && rd <= 100) { g3.rendement = rd / 100; touch(); render(); } }
     if (el.id === "cible") { var c = parseFloat(el.value); if (c > 0 && c < 100) { state.cible = c; save(); render(); } }
     if (el.id === "import-photo" && el.files && el.files.length) {

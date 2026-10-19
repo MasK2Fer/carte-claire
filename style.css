@@ -268,3 +268,19 @@ sup.codes { font: 500 11px/1 var(--f-num); color: var(--accent); letter-spacing:
 .site-foot { font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); padding-top: var(--s4); }
 
 a.btn { text-decoration: none; }
+
+/* Onglet Fournisseurs */
+.tabs { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 480px) { .tab { font-size: 12px; letter-spacing: .02em; } }
+.fo-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.fo-item { position: relative; display: block; cursor: pointer; }
+.fo-item input { position: absolute; opacity: 0; pointer-events: none; }
+.fo-box { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 10px 38px; border: 1px solid var(--line); border-radius: 10px; position: relative; }
+.fo-box::before { content: ""; position: absolute; left: 12px; top: 12px; width: 16px; height: 16px; border: 2px solid var(--line); border-radius: 4px; }
+.fo-item input:checked + .fo-box { border-color: var(--accent); background: var(--accent-soft); }
+.fo-item input:checked + .fo-box::before { background: var(--accent); border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--surface); }
+.fo-item input:focus-visible + .fo-box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fo-cell select { width: 100%; min-width: 120px; font-size: 14px; }
+.fo-best td { background: var(--ok-soft); }
+.fo-imp { display: grid; grid-template-columns: 1fr minmax(140px, 45%); gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+.nowrap { white-space: nowrap; }
