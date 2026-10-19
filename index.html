@@ -11,22 +11,57 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
 </head>
-<body>
-<main class="home">
-  <div>
-    <p class="label" style="color:var(--accent)">Carte Claire · maquette</p>
-    <h1>La carte des allergènes, claire pour tout le monde</h1>
-  </div>
-  <p class="muted">Une fiche recette saisie une fois donne le tableau des allergènes, une carte que le client filtre selon ses allergies, et le coût matière de chaque plat.</p>
-  <a class="choice" href="carte.html">
-    <span class="go">Je suis client →</span>
-    <span class="muted">Voir la carte, cocher mes allergies et ne garder que les plats que je peux manger. En français, anglais, allemand ou italien.</span>
-  </a>
-  <a class="choice" href="pro.html">
-    <span class="go">Je suis restaurateur →</span>
-    <span class="muted">Recettes, tableau des allergènes, coûts et marges. Accès par code (démonstration : 1234).</span>
-  </a>
-  <p class="small muted">Maquette de test avec des données d'exemple. Chaque visiteur garde ses saisies dans son propre navigateur : rien n'est envoyé ni partagé.</p>
-</main>
+<body style="padding-bottom:0">
+<div class="site">
+  <header class="site-top">
+    <a class="wordmark" href="./">Carte <i>Claire</i></a>
+    <a class="link" href="pro.html">Espace restaurateur</a>
+  </header>
+
+  <section class="hero">
+    <div class="pitch">
+      <h1>Le client coche son allergie, <em>la carte fait le tri.</em></h1>
+      <p class="lede">Carte Claire part de vos fiches recettes pour tenir à jour le tableau des 14 allergènes, une carte en 4 langues et le coût matière de chaque plat. Vous saisissez une fois, le reste suit.</p>
+      <ol class="steps">
+        <li><span><b>Saisissez ou photographiez vos recettes.</b> Les allergènes de chaque ingrédient sont déjà connus.</span></li>
+        <li><span><b>Posez le QR code sur les tables.</b> Le client trie la carte selon ses allergies, dans sa langue.</span></li>
+        <li><span><b>Suivez vos marges.</b> Une photo de facture met à jour le coût de chaque plat.</span></li>
+      </ol>
+      <div class="cta">
+        <a class="btn primary big" href="pro.html">Ouvrir l'espace restaurateur</a>
+        <a class="btn big" href="carte.html">Voir la carte client</a>
+      </div>
+      <p class="small muted">Code de démonstration de l'espace restaurateur : <span class="num">1234</span></p>
+    </div>
+    <div>
+      <p class="demo-label">Essayez la carte : cochez « Lait » ou changez de langue.</p>
+      <div class="phone" id="carte" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <p class="site-foot">Maquette de démonstration avec des données d'exemple. Chaque visiteur garde ses saisies dans son propre navigateur : rien n'est envoyé ni partagé.</p>
+</div>
+<script src="commun.js"></script>
+<script>
+(function () {
+  "use strict";
+  var data = CC.lireCarte() || CC.EXEMPLE;
+  var lang = "fr", sel = [];
+  var box = document.getElementById("carte");
+  function render(focusId) {
+    box.setAttribute("lang", lang);
+    box.innerHTML = CC.carteHTML(data, lang, sel);
+    if (focusId) { var el = document.getElementById(focusId); if (el) el.focus(); }
+  }
+  box.addEventListener("click", function (e) { var b = e.target.closest('[data-act="lang"]'); if (b) { lang = b.dataset.lang; render(); } });
+  box.addEventListener("change", function (e) {
+    var el = e.target; if (el.dataset.act !== "pick") return;
+    var i = sel.indexOf(el.value);
+    if (el.checked && i < 0) sel.push(el.value); if (!el.checked && i >= 0) sel.splice(i, 1);
+    render(el.id);
+  });
+  render();
+})();
+</script>
 </body>
 </html>

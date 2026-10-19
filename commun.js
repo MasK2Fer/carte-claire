@@ -1,4 +1,4 @@
-/* Carte Claire — code commun à l'espace client et à l'espace restaurateur.
+/* Carte Claire : code commun à l'espace client et à l'espace restaurateur.
    La carte client ne reçoit que les plats, leurs prix de vente et leurs allergènes :
    aucun ingrédient, aucun coût, aucune marge. */
 (function () {
@@ -21,7 +21,7 @@
     { c: "lupin", fr: "Lupin", en: "Lupin", de: "Lupinen", it: "Lupini" },
     { c: "mollusques", fr: "Mollusques", en: "Molluscs", de: "Weichtiere", it: "Molluschi" }
   ];
-  var A = {}; ALLERGENES.forEach(function (a) { A[a.c] = a; });
+  var A = {}; ALLERGENES.forEach(function (a, i) { a.n = i + 1; A[a.c] = a; });
 
   var UI = {
     fr: { title: "Notre carte", choose: "Je suis allergique ou intolérant à :", ok: "Plats que vous pouvez choisir", all: "Tous nos plats", none: "Aucun plat ne convient à votre sélection.", hidden: "Plats qui ne conviennent pas", contains: "Contient", traces: "Peut contenir des traces de", onRequest: "Possible sur demande", free: "Sans allergène à déclarer", warn: "Signalez toujours votre allergie au personnel avant de commander.", privacy: "Vos choix restent sur votre téléphone : rien n'est enregistré." },
@@ -39,18 +39,19 @@
   function aName(c, lang) { return A[c] ? (A[c][lang] || A[c].fr) : c; }
   function nomPlat(d, lang) { return (lang !== "fr" && d.noms && d.noms[lang]) ? d.noms[lang] : d.nom; }
 
-  // Contenu de la carte vue par le client.
+  // Contenu de la carte vue par le client, mis en page comme une carte de restaurant :
+  // nom du plat, points de conduite, prix, et les numéros d'allergènes en exposant (1 à 14, ordre réglementaire).
   // data = { resto, plats: [{ nom, noms, prix, contient: [], traces: [], variante: { fr, en, de, it, retire: [] } }] }
+  function codes(list) { return list.map(function (x) { return A[x] ? A[x].n : ""; }).join("·"); }
   function carteHTML(data, lang, sel) {
     var u = UI[lang] || UI.fr;
     var sep = lang === "fr" ? " : " : ": ";
-    var h = '<div class="row" style="justify-content:space-between"><h3>' + esc(data.resto) + '</h3><div class="langs" role="group" aria-label="Langue / Language">';
+    var h = '<header class="menu-head"><h3 class="menu-resto">' + esc(data.resto) + '</h3><div class="langs" role="group" aria-label="Langue / Language">';
     LANGS.forEach(function (l) { h += '<button class="lang" data-act="lang" data-lang="' + l + '" aria-pressed="' + (l === lang) + '">' + l.toUpperCase() + "</button>"; });
-    h += "</div></div>";
-    h += '<p class="label">' + esc(u.title) + "</p>";
-    h += "<p><b>" + esc(u.choose) + '</b></p><div class="allergen-pick">';
+    h += "</div></header>";
+    h += '<p class="menu-q">' + esc(u.choose) + '</p><div class="allergen-pick">';
     ALLERGENES.forEach(function (a) {
-      h += '<label class="toggle"><input type="checkbox" data-act="pick" id="pick-' + a.c + '" value="' + a.c + '"' + (sel.indexOf(a.c) >= 0 ? " checked" : "") + "><span>" + esc(aName(a.c, lang)) + "</span></label>";
+      h += '<label class="toggle"><input type="checkbox" data-act="pick" id="pick-' + a.c + '" value="' + a.c + '"' + (sel.indexOf(a.c) >= 0 ? " checked" : "") + '><span><b class="n">' + a.n + "</b>" + esc(aName(a.c, lang)) + "</span></label>";
     });
     h += "</div>";
 
@@ -61,11 +62,11 @@
       var sauvable = bloque.length > 0 && v.fr && bloque.every(function (x) { return rv.indexOf(x) >= 0; });
       if (!bloque.length) okList.push({ d: d }); else if (sauvable) okList.push({ d: d, variante: true }); else noList.push({ d: d, bloque: bloque });
     });
-    h += '<p class="label">' + esc(sel.length ? u.ok : u.all) + "</p><div>";
+    h += '<p class="menu-rule"><span>' + esc(sel.length ? u.ok : u.all) + (sel.length ? " · " + okList.length + "/" + data.plats.length : "") + "</span></p><div>";
     if (!okList.length) h += '<p class="note bad">' + esc(u.none) + "</p>";
     okList.forEach(function (o) {
       var d = o.d, tSel = sel.length ? d.traces.filter(function (x) { return sel.indexOf(x) >= 0; }) : d.traces;
-      h += '<div class="dish"><div class="dish-name"><span>' + esc(nomPlat(d, lang)) + '</span><span class="num">' + eur(d.prix) + "</span></div>";
+      h += '<div class="dish"><div class="dish-line"><span class="dish-n">' + esc(nomPlat(d, lang)) + (d.contient.length ? ' <sup class="codes">' + codes(d.contient) + "</sup>" : "") + '</span><span class="lead" aria-hidden="true"></span><span class="num">' + eur(d.prix) + "</span></div>";
       if (o.variante) {
         h += '<p class="note ok">' + esc(u.onRequest) + sep + esc(d.variante[lang] || d.variante.fr) + "</p>";
       } else if (!sel.length) {
@@ -78,10 +79,11 @@
     if (noList.length) {
       h += "<details><summary>" + esc(u.hidden) + " (" + noList.length + ")</summary><div>";
       noList.forEach(function (o) {
-        h += '<div class="dish"><div class="dish-name"><span class="muted">' + esc(nomPlat(o.d, lang)) + '</span></div><p class="note bad">' + esc(u.contains) + sep + esc(o.bloque.map(function (x) { return aName(x, lang); }).join(", ")) + "</p></div>";
+        h += '<div class="dish off"><div class="dish-line"><span class="dish-n">' + esc(nomPlat(o.d, lang)) + '</span></div><p class="note bad">' + esc(u.contains) + sep + esc(o.bloque.map(function (x) { return aName(x, lang); }).join(", ")) + "</p></div>";
       });
       h += "</div></details>";
     }
+    h += '<p class="legend-codes">' + ALLERGENES.map(function (a) { return "<span>" + a.n + " " + esc(aName(a.c, lang)) + "</span>"; }).join("") + "</p>";
     h += '<p class="notice">' + esc(u.warn) + "<br>" + esc(u.privacy) + "</p>";
     return h;
   }
@@ -89,5 +91,8 @@
   function lireCarte() { try { return JSON.parse(localStorage.getItem(CARTE_KEY) || "null"); } catch (e) { return null; } }
   function ecrireCarte(data) { try { localStorage.setItem(CARTE_KEY, JSON.stringify(data)); } catch (e) {} }
 
-  window.CC = { ALLERGENES: ALLERGENES, A: A, UI: UI, LANGS: LANGS, esc: esc, eur: eur, aName: aName, carteHTML: carteHTML, lireCarte: lireCarte, ecrireCarte: ecrireCarte };
+  // Carte d'exemple : plats, prix de vente et allergènes seulement
+  var EXEMPLE = {"resto":"Le Bistrot d'exemple","lang":"fr","plats":[{"nom":"Velouté de champignons","noms":{"en":"Mushroom velouté","de":"Champignon-Cremesuppe","it":"Vellutata di funghi"},"prix":9,"contient":["lait","celeri"],"traces":[],"variante":{"fr":"Sans crème ni beurre, cuit à l'huile d'olive","en":"Without cream or butter, cooked in olive oil","de":"Ohne Sahne und Butter, mit Olivenöl gekocht","it":"Senza panna né burro, cotto con olio d'oliva","retire":["lait"]}},{"nom":"Moules marinières, frites","noms":{"en":"Mussels marinière with fries","de":"Miesmuscheln Marinière mit Pommes","it":"Cozze alla marinara con patatine"},"prix":17,"contient":["lait","sulfites","mollusques"],"traces":["gluten","poissons"],"variante":{"fr":"","en":"","de":"","it":"","retire":[]}},{"nom":"Saumon, beurre blanc, légumes de saison","noms":{"en":"Salmon, beurre blanc, seasonal vegetables","de":"Lachs, Beurre blanc, Saisongemüse","it":"Salmone, beurre blanc, verdure di stagione"},"prix":22,"contient":["poissons","lait","sulfites"],"traces":[],"variante":{"fr":"Sans beurre blanc, avec un filet d'huile d'olive","en":"Without beurre blanc, with a drizzle of olive oil","de":"Ohne Beurre blanc, mit etwas Olivenöl","it":"Senza beurre blanc, con un filo d'olio d'oliva","retire":["lait","sulfites"]}},{"nom":"Tagliatelles au pesto maison","noms":{"en":"Tagliatelle with homemade pesto","de":"Tagliatelle mit hausgemachtem Pesto","it":"Tagliatelle al pesto della casa"},"prix":15,"contient":["gluten","lait","fruits_coque"],"traces":[],"variante":{"fr":"Pesto sans noisettes","en":"Pesto without hazelnuts","de":"Pesto ohne Haselnüsse","it":"Pesto senza nocciole","retire":["fruits_coque"]}},{"nom":"Moelleux au chocolat","noms":{"en":"Chocolate fondant","de":"Schokoladen-Fondant","it":"Tortino al cioccolato"},"prix":8,"contient":["gluten","oeufs","soja","lait"],"traces":["fruits_coque"],"variante":{"fr":"","en":"","de":"","it":"","retire":[]}}]};
+
+  window.CC = { EXEMPLE: EXEMPLE, ALLERGENES: ALLERGENES, A: A, UI: UI, LANGS: LANGS, esc: esc, eur: eur, aName: aName, carteHTML: carteHTML, lireCarte: lireCarte, ecrireCarte: ecrireCarte };
 })();
