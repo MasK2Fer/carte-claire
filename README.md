@@ -5,6 +5,7 @@ Maquette cliquable d'une appli pour restaurateurs : une fiche recette saisie une
 - **Accueil :** https://mask2fer.github.io/carte-claire/
 - **Carte client** (ce que voit le client en scannant le QR code) : https://mask2fer.github.io/carte-claire/carte.html
 - **Espace restaurateur** (recettes, allergènes, marges ; code de démonstration 1234) : https://mask2fer.github.io/carte-claire/pro.html
+- **Sondage restaurateurs** (sans compte, sur téléphone ou tablette) : https://mask2fer.github.io/carte-claire/sondage/
 
 La carte client ne reçoit que les plats, leurs prix de vente et leurs allergènes : aucun ingrédient, coût ou marge.
 
