@@ -31,7 +31,7 @@
         <a class="btn primary big" href="pro.html">Ouvrir l'espace restaurateur</a>
         <a class="btn big" href="carte.html">Voir la carte client</a>
       </div>
-      <p class="small muted">Code de démonstration de l'espace restaurateur : <span class="num">1234</span></p>
+      <p class="small muted" id="demo-code">Code de démonstration de l'espace restaurateur : <span class="num">1234</span></p>
     </div>
     <div>
       <p class="demo-label">Essayez la carte : cochez « Lait » ou changez de langue.</p>
@@ -41,12 +41,15 @@
 
   <p class="site-foot">Maquette de démonstration avec des données d'exemple. Chaque visiteur garde ses saisies dans son propre navigateur : rien n'est envoyé ni partagé.</p>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
 <script src="commun.js"></script>
 <script>
 (function () {
   "use strict";
   var data = CC.lireCarte() || CC.EXEMPLE;
   var lang = "fr", sel = [];
+  if (CC.cloud) document.getElementById("demo-code").hidden = true; // en ligne : vrais comptes, plus de code
   var box = document.getElementById("carte");
   function render(focusId) {
     box.setAttribute("lang", lang);
