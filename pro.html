@@ -4,33 +4,31 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#F7F6F2">
+<meta name="theme-color" content="#C8CED5">
+<meta name="description" content="Espace restaurateur de la maquette Carte Claire : recettes, tableau des allergènes, carte client et marges.">
 <title>Carte Claire · Restaurateur</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap">
 </head>
-<body class="locked">
+<body class="locked app pro">
 <div class="gate" id="gate">
   <form class="gate-card" id="gate-form" autocomplete="off">
     <h2>Espace restaurateur</h2>
-    <p class="small muted">Recettes, tableau des allergènes, coûts et marges. Les clients n'y ont pas accès.</p>
-    <div class="field"><label class="label" for="gate-code">Code d'accès</label><input id="gate-code" type="text" inputmode="numeric" autocomplete="off" placeholder="Code de démonstration : 1234"></div>
+    <p class="small muted">Recettes, tableau des allergènes, coûts et marges. Les clients n’y ont pas accès.</p>
+    <div class="field"><label class="label" for="gate-code">Code d’accès</label><input id="gate-code" type="text" inputmode="numeric" autocomplete="off" placeholder="Code de démonstration : 1234"></div>
     <p class="err" id="gate-err" hidden>Code incorrect. Pour la démonstration, le code est 1234.</p>
     <button class="btn primary" type="submit">Entrer</button>
     <p class="small muted">Dans la vraie version, chaque restaurant aura son compte avec mot de passe.</p>
-    <a class="small" href="carte.html" style="color:var(--accent)">Je suis client : voir la carte</a>
+    <a class="small" href="carte.html">Je suis client : voir la carte</a>
   </form>
 </div>
 <div class="wrap">
   <header class="top">
     <div class="brand">
-      <span class="app">Carte Claire</span>
+      <span class="app-name">Carte Claire</span>
       <input id="resto" class="resto" type="text" aria-label="Nom du restaurant" value="">
     </div>
   </header>
-  <p class="intro"><a href="./" style="color:var(--accent);font-weight:600;text-decoration:none">Carte Claire</a> · démonstration avec des données d'exemple. Tes saisies restent dans ce navigateur et mettent à jour la carte client sur ce même téléphone.</p>
+  <p class="intro"><a href="./">Carte Claire</a> : démonstration avec des données d’exemple. Tes saisies restent dans ce navigateur et mettent à jour la carte client sur ce même téléphone.</p>
   <main id="view" class="wrap" aria-live="polite"></main>
 </div>
 

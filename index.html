@@ -4,43 +4,99 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#F7F6F2">
+<meta name="theme-color" content="#C8CED5">
+<meta name="description" content="Carte Claire part de vos fiches recettes pour tenir à jour le tableau des 14 allergènes, une carte en 4 langues et le coût matière de chaque plat.">
 <title>Carte Claire</title>
+<link rel="preload" href="fonts/hanken-grotesk-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/newsreader-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap">
 </head>
-<body style="padding-bottom:0">
-<div class="site">
-  <header class="site-top">
-    <a class="wordmark" href="./">Carte <i>Claire</i></a>
-    <a class="link" href="pro.html">Espace restaurateur</a>
-  </header>
+<body class="site-page">
+<header class="container bar">
+  <a class="wordmark" href="./">Carte Claire</a>
+  <a class="bar-link" href="pro.html">Espace restaurateur</a>
+</header>
 
-  <section class="hero">
+<main>
+  <section class="container hero" aria-labelledby="hero-title">
     <div class="pitch">
-      <h1>Le client coche son allergie, <em>la carte fait le tri.</em></h1>
-      <p class="lede">Carte Claire part de vos fiches recettes pour tenir à jour le tableau des 14 allergènes, une carte en 4 langues et le coût matière de chaque plat. Vous saisissez une fois, le reste suit.</p>
-      <ol class="steps">
-        <li><span><b>Saisissez ou photographiez vos recettes.</b> Les allergènes de chaque ingrédient sont déjà connus.</span></li>
-        <li><span><b>Posez le QR code sur les tables.</b> Le client trie la carte selon ses allergies, dans sa langue.</span></li>
-        <li><span><b>Suivez vos marges.</b> Une photo de facture met à jour le coût de chaque plat.</span></li>
-      </ol>
+      <h1 id="hero-title">Le client coche, la carte trie.</h1>
+      <p class="lead">Une fiche recette tient à jour vos allergènes, votre carte et vos marges.</p>
       <div class="cta">
-        <a class="btn primary big" href="pro.html">Ouvrir l'espace restaurateur</a>
-        <a class="btn big" href="carte.html">Voir la carte client</a>
+        <a class="btn primary" href="pro.html">Ouvrir l’espace restaurateur</a>
+        <a class="btn" href="carte.html">Voir la carte client</a>
       </div>
-      <p class="small muted">Code de démonstration de l'espace restaurateur : <span class="num">1234</span></p>
+      <p class="code-line">Code de démonstration de l’espace restaurateur : <span class="num">1234</span></p>
     </div>
-    <div>
-      <p class="demo-label">Essayez la carte : cochez « Lait » ou changez de langue.</p>
-      <div class="phone" id="carte" aria-live="polite"></div>
+    <figure class="demo">
+      <div class="demo-head"></div>
+      <div class="demo-scroll" tabindex="0" role="region" aria-label="Carte d’exemple à essayer">
+        <div class="phone" id="carte" aria-live="polite"><header class="menu-head"><h3 class="menu-resto">Le Bistrot d&#39;exemple</h3><div class="langs" role="group" aria-label="Langue / Language"><button class="lang" data-act="lang" data-lang="fr" aria-pressed="true">FR</button><button class="lang" data-act="lang" data-lang="en" aria-pressed="false">EN</button><button class="lang" data-act="lang" data-lang="de" aria-pressed="false">DE</button><button class="lang" data-act="lang" data-lang="it" aria-pressed="false">IT</button></div></header><p class="menu-q">Je suis allergique ou intolérant à :</p><div class="allergen-pick"><label class="toggle"><input type="checkbox" data-act="pick" id="pick-gluten" value="gluten"><span><b class="n">1</b>Gluten</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-crustaces" value="crustaces"><span><b class="n">2</b>Crustacés</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-oeufs" value="oeufs"><span><b class="n">3</b>Œufs</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-poissons" value="poissons"><span><b class="n">4</b>Poissons</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-arachides" value="arachides"><span><b class="n">5</b>Arachides</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-soja" value="soja"><span><b class="n">6</b>Soja</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-lait" value="lait"><span><b class="n">7</b>Lait</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-fruits_coque" value="fruits_coque"><span><b class="n">8</b>Fruits à coque</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-celeri" value="celeri"><span><b class="n">9</b>Céleri</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-moutarde" value="moutarde"><span><b class="n">10</b>Moutarde</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-sesame" value="sesame"><span><b class="n">11</b>Sésame</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-sulfites" value="sulfites"><span><b class="n">12</b>Sulfites</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-lupin" value="lupin"><span><b class="n">13</b>Lupin</span></label><label class="toggle"><input type="checkbox" data-act="pick" id="pick-mollusques" value="mollusques"><span><b class="n">14</b>Mollusques</span></label></div><p class="menu-rule"><span>Tous nos plats</span></p><div><div class="dish"><div class="dish-line"><span class="dish-n">Velouté de champignons <sup class="codes">7·9</sup></span><span class="lead" aria-hidden="true"></span><span class="num">9,00 €</span></div><p class="note muted">Contient : Lait, Céleri</p></div><div class="dish"><div class="dish-line"><span class="dish-n">Moules marinières, frites <sup class="codes">7·12·14</sup></span><span class="lead" aria-hidden="true"></span><span class="num">17,00 €</span></div><p class="note muted">Contient : Lait, Sulfites, Mollusques</p><p class="note warn">Peut contenir des traces de : Gluten, Poissons</p></div><div class="dish"><div class="dish-line"><span class="dish-n">Saumon, beurre blanc, légumes de saison <sup class="codes">4·7·12</sup></span><span class="lead" aria-hidden="true"></span><span class="num">22,00 €</span></div><p class="note muted">Contient : Poissons, Lait, Sulfites</p></div><div class="dish"><div class="dish-line"><span class="dish-n">Tagliatelles au pesto maison <sup class="codes">1·7·8</sup></span><span class="lead" aria-hidden="true"></span><span class="num">15,00 €</span></div><p class="note muted">Contient : Gluten, Lait, Fruits à coque</p></div><div class="dish"><div class="dish-line"><span class="dish-n">Moelleux au chocolat <sup class="codes">1·3·6·7</sup></span><span class="lead" aria-hidden="true"></span><span class="num">8,00 €</span></div><p class="note muted">Contient : Gluten, Œufs, Soja, Lait</p><p class="note warn">Peut contenir des traces de : Fruits à coque</p></div></div><p class="legend-codes"><span>1 Gluten</span><span>2 Crustacés</span><span>3 Œufs</span><span>4 Poissons</span><span>5 Arachides</span><span>6 Soja</span><span>7 Lait</span><span>8 Fruits à coque</span><span>9 Céleri</span><span>10 Moutarde</span><span>11 Sésame</span><span>12 Sulfites</span><span>13 Lupin</span><span>14 Mollusques</span></p><p class="notice">Signalez toujours votre allergie au personnel avant de commander.<br>Vos choix restent sur votre téléphone : rien n&#39;est enregistré.</p></div>
+      </div>
+      <figcaption><span>Essayez la carte : cochez « Lait » ou changez de langue.</span></figcaption>
+    </figure>
+  </section>
+
+  <section class="chapter" aria-labelledby="steps-title">
+    <div class="container">
+      <div class="chapter-head">
+        <h2 id="steps-title">Vous saisissez une fois, le reste suit.</h2>
+        <p class="lead">Carte Claire part de vos fiches recettes pour tenir à jour le tableau des 14 allergènes, une carte en 4 langues et le coût matière de chaque plat.</p>
+      </div>
+      <ol class="steps">
+        <li><h3>Saisissez ou photographiez vos recettes.</h3><p>Les allergènes de chaque ingrédient sont déjà connus.</p></li>
+        <li><h3>Posez le QR code sur les tables.</h3><p>Le client trie la carte selon ses allergies, dans sa langue.</p></li>
+        <li><h3>Suivez vos marges.</h3><p>Une photo de facture met à jour le coût de chaque plat.</p></li>
+      </ol>
+      <div class="sheet-page">
+        <div class="sheet-page-head">
+          <h3>Tableau des allergènes</h3>
+          <div class="legend"><span><span class="mark c" aria-hidden="true">●</span> Contient</span><span><span class="mark t" aria-hidden="true">!</span> Traces possibles</span></div>
+        </div>
+        <div class="sheet-scroll" tabindex="0" role="region" aria-label="Tableau des allergènes, défilement horizontal">
+<table class="ledger">
+<caption class="visually-hidden">Tableau des 14 allergènes, carte d'exemple</caption>
+<thead><tr><th scope="col">Plat</th><th scope="col" title="Céréales contenant du gluten"><b>1</b>Gluten</th><th scope="col" title="Crustacés"><b>2</b>Crustacés</th><th scope="col" title="Œufs"><b>3</b>Œufs</th><th scope="col" title="Poissons"><b>4</b>Poissons</th><th scope="col" title="Arachides"><b>5</b>Arachides</th><th scope="col" title="Soja"><b>6</b>Soja</th><th scope="col" title="Lait"><b>7</b>Lait</th><th scope="col" title="Fruits à coque"><b>8</b>Fruits à coque</th><th scope="col" title="Céleri"><b>9</b>Céleri</th><th scope="col" title="Moutarde"><b>10</b>Moutarde</th><th scope="col" title="Graines de sésame"><b>11</b>Sésame</th><th scope="col" title="Anhydride sulfureux et sulfites"><b>12</b>Sulfites</th><th scope="col" title="Lupin"><b>13</b>Lupin</th><th scope="col" title="Mollusques"><b>14</b>Mollusques</th></tr></thead>
+<tbody>
+<tr><th scope="row">Velouté de champignons</th><td></td><td></td><td></td><td></td><td></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><th scope="row">Moules marinières, frites</th><td><span class="mark t" role="img" aria-label="Traces possibles">!</span></td><td></td><td></td><td><span class="mark t" role="img" aria-label="Traces possibles">!</span></td><td></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td></td><td></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td></tr>
+<tr><th scope="row">Saumon, beurre blanc, légumes de saison</th><td></td><td></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td></td><td></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td></td></tr>
+<tr><th scope="row">Tagliatelles au pesto maison</th><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td></td><td></td><td></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><th scope="row">Moelleux au chocolat</th><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td></td><td></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td><span class="mark c" role="img" aria-label="Contient">●</span></td><td><span class="mark t" role="img" aria-label="Traces possibles">!</span></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+</tbody>
+</table>
+        </div>
+        <p class="sheet-foot"><span>Le Bistrot d’exemple, tiré des cinq fiches de la carte ci-dessus.</span><span>Données d’exemple</span></p>
+      </div>
     </div>
   </section>
 
-  <p class="site-foot">Maquette de démonstration avec des données d'exemple. Chaque visiteur garde ses saisies dans son propre navigateur : rien n'est envoyé ni partagé.</p>
-</div>
+  <section class="band" aria-labelledby="band-title">
+    <div class="container band-grid">
+      <div>
+        <h2 id="band-title">Espace restaurateur</h2>
+        <p class="lead">Recettes, tableau des allergènes, coûts et marges. Les clients n’y ont pas accès.</p>
+      </div>
+      <div class="band-code">
+        <span class="label">Code de démonstration</span>
+        <span class="figure">1234</span>
+        <div class="cta">
+          <a class="btn primary" href="pro.html">Ouvrir l’espace restaurateur</a>
+          <a class="btn" href="carte.html">Voir la carte client</a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="container colophon">
+  <div class="colophon-grid">
+    <a class="wordmark" href="./">Carte Claire</a>
+    <div>
+      <p class="site-foot">Maquette de démonstration avec des données d’exemple. Chaque visiteur garde ses saisies dans son propre navigateur : rien n’est envoyé ni partagé.</p>
+    </div>
+  </div>
+</footer>
 <script src="commun.js"></script>
 <script>
 (function () {
